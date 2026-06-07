@@ -27,7 +27,7 @@ const recent = posts.slice(0, 4);
     </div>
   </header>
 
-  <div class="centerpiece-wrap reveal" style="--i: 4">
+  <div class="centerpiece-wrap">
     <section class="centerpiece" aria-hidden="true">
       <span class="centerpiece__fringe centerpiece__fringe--shadow"></span>
       <div class="centerpiece__sheet">
@@ -63,6 +63,14 @@ const recent = posts.slice(0, 4);
       Public collection.
     </p>
   </div>
+
+  <script is:inline>
+    // Safety net: if the WebGL washi never signals ready (module failed to load,
+    // WebGL unsupported, very slow network), reveal the centerpiece anyway.
+    setTimeout(function () {
+      document.documentElement.classList.add("washi-ready");
+    }, 2600);
+  </script>
 
   <section class="reveal section" style="--i: 5">
     <h2 class="heading">Work</h2>
@@ -264,6 +272,24 @@ const recent = posts.slice(0, 4);
     width: min(56rem, 92vw);
     margin-left: calc(50% - min(56rem, 92vw) / 2);
     margin-top: 3rem;
+    /* Hold the entrance until the WebGL washi has painted its first frame, so
+       the paper and the autoplaying video reveal together. On slow networks the
+       shader bundle + textures lag the video by ~1s; gating on `washi-ready`
+       (set by WashiScreen, with a timeout fallback below) keeps them in sync. */
+    opacity: 0;
+    transform: translateY(8px);
+    transition:
+      opacity 420ms var(--ease-out-cubic),
+      transform 420ms var(--ease-out-cubic);
+  }
+  :global(html.washi-ready) .centerpiece-wrap {
+    opacity: 1;
+    transform: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .centerpiece-wrap {
+      transition: none;
+    }
   }
   .centerpiece {
     position: relative;

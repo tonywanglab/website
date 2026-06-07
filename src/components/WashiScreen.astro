@@ -1076,6 +1076,13 @@ void main() {
           1920 * 1080,
         );
 
+        // The paper has rendered its first frame. Signal the page (next paint)
+        // so it can reveal the centerpiece in sync with the paper — otherwise the
+        // autoplaying video shows ~1s before the shader finishes on slow networks.
+        requestAnimationFrame(() =>
+          document.documentElement.classList.add("washi-ready"),
+        );
+
         // Swap the embedded photo when the theme flips (day â night).
         if (darkImage && dayImage) {
           const applyPaperImage = () => {
