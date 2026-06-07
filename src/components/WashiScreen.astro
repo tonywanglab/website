@@ -566,11 +566,24 @@ void main() {
       "(prefers-reduced-motion: reduce)",
     ).matches;
 
+    let unrollMarked = false;
     const markUnrolled = () => {
+      if (unrollMarked) return;
+      unrollMarked = true;
       document.documentElement.classList.add("washi-unrolled");
     };
     if (reduceMotion) {
       markUnrolled();
+    } else {
+      root.addEventListener(
+        "animationend",
+        (e) => {
+          if (e.animationName === "washi-unroll") markUnrolled();
+        },
+        { once: true },
+      );
+      // Start the shadow while the last ~20% of the unroll is still settling.
+      window.setTimeout(markUnrolled, 620);
     }
 
     // When a tree-shadow video backdrop is supplied, it replaces the GLSL
@@ -720,7 +733,6 @@ void main() {
       const settleBend = () => {
         bendReady = true;
         root.style.willChange = "auto";
-        markUnrolled();
       };
       root.addEventListener("animationend", settleBend, { once: true });
       window.setTimeout(settleBend, 1000);
