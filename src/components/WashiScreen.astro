@@ -660,18 +660,30 @@ void main() {
           "vec2 washiScr = gl_FragCoord.xy / u_resolution;\n  vec2 washiD = washiWarp(washiScr);\n  vec2 imageUV = v_imageUV + washiD;\n  vec2 patternUV = (v_imageUV + washiD) - .5;",
         );
 
+    // Lift only the embedded photo at night — leaves fiber/crumple lighting intact.
+    const injectPaperImageLift = (src: string) =>
+      src
+        .replace(
+          "uniform float u_fade;",
+          "uniform float u_fade;\nuniform float u_imageLift;",
+        )
+        .replace(
+          "image.rgb += .6 * pow(u_contrast, .4) * (res - .7);",
+          "image.rgb += .6 * pow(u_contrast, .4) * (res - .7);\n  image.rgb = image.rgb * (1.0 + u_imageLift) + u_imageLift * 0.1;",
+        );
+
     const warpedPaperShader = isInline
       // Centerpiece: warp + a soft depression shadow (the paper multiplies over
       // the video, so darkening it locally reads as a pressed-in dip) + the same
       // torn deckle the standalone study cuts, evaluated on the bent uv so the
       // sheet's edge flexes with the pointer instead of sitting in a static CSS
       // mask. The video/sun keep their own (static) deckle silhouette in CSS.
-      ? injectPaperWarp(paperTextureFragmentShader).replace(
+      ? injectPaperImageLift(injectPaperWarp(paperTextureFragmentShader)).replace(
           "fragColor = vec4(color, opacity);",
           "vec2 bentUv = washiScr + washiD;\n  color *= 1.0 - washiBend(washiScr) * 0.06;\n  color = washiPly(bentUv, color);\n  color = washiFaceRim(bentUv, color);\n  fragColor = vec4(color, opacity * washiDeckle(bentUv));",
         )
       // Standalone: warp + the in-shader torn deckle edge (its only edge mask).
-      : injectPaperWarp(paperTextureFragmentShader).replace(
+      : injectPaperImageLift(injectPaperWarp(paperTextureFragmentShader)).replace(
           "fragColor = vec4(color, opacity);",
           "fragColor = vec4(color, opacity * washiDeckle(washiScr + washiD));",
         );
@@ -927,6 +939,28 @@ void main() {
         if (!pickImage()) return 0.5;
         return isDark() && darkImage ? 0.68 * (2 / 3) : 0.68;
       };
+      const paperLook = () =>
+        isDark() && darkImage
+          ? {
+              u_colorFront: getShaderColorFromString("#d8d6cb"),
+              u_colorBack: getShaderColorFromString("#fff8f0b0"),
+              u_contrast: 0.52,
+              u_fade: 0.41,
+              u_roughness: 0.56,
+              u_fiber: 0.58,
+              u_crumples: 0.88,
+              u_imageLift: 0.42,
+            }
+          : {
+              u_colorFront: getShaderColorFromString("#d8d6cb"),
+              u_colorBack: getShaderColorFromString("#fff8eba3"),
+              u_contrast: 0.43,
+              u_fade: 0.41,
+              u_roughness: 0.5,
+              u_fiber: 0.5,
+              u_crumples: 0.82,
+              u_imageLift: 0,
+            };
       const embeddedImage = pickImage();
 
       try {
@@ -958,17 +992,11 @@ void main() {
             u_imageAspectRatio: imageAspect,
             ...(embeddedImage ? { u_image: embeddedImage } : {}),
             u_noiseTexture: noise,
-            u_colorFront: getShaderColorFromString("#d8d6cb"),
-            u_colorBack: getShaderColorFromString("#fff8eba3"),
-            u_contrast: 0.43,
-            u_roughness: 0.5,
-            u_fiber: 0.5,
+            ...paperLook(),
             u_fiberSize: 0.46,
-            u_crumples: 0.82,
             u_crumpleSize: 0.09,
             u_folds: 0,
             u_foldCount: 1,
-            u_fade: 0.41,
             u_drops: 0.15,
             u_seed: 370,
           },
@@ -991,6 +1019,7 @@ void main() {
               u_image: img,
               u_imageAspectRatio: img.naturalWidth / img.naturalHeight,
               u_scale: imageScale(),
+              ...paperLook(),
             });
           };
           new MutationObserver(applyPaperImage).observe(
