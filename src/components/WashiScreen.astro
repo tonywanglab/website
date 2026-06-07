@@ -79,10 +79,10 @@ const {
         id="washi-video"
         class="washi__layer washi__video"
         src={leafVideo}
+        autoplay
         loop
         muted
         playsinline
-        preload="auto"
       />
     )
   }
@@ -566,6 +566,13 @@ void main() {
       "(prefers-reduced-motion: reduce)",
     ).matches;
 
+    const markUnrolled = () => {
+      document.documentElement.classList.add("washi-unrolled");
+    };
+    if (reduceMotion) {
+      markUnrolled();
+    }
+
     // When a tree-shadow video backdrop is supplied, it replaces the GLSL
     // backlight + static maple shadow; only the washi paper still mounts.
     const useVideo = Boolean(ds.leafvideo);
@@ -713,12 +720,10 @@ void main() {
       const settleBend = () => {
         bendReady = true;
         root.style.willChange = "auto";
+        markUnrolled();
       };
-      const unrollEl = isInlineSheet
-        ? root.closest(".centerpiece")
-        : root;
-      unrollEl?.addEventListener("animationend", settleBend, { once: true });
-      window.setTimeout(settleBend, isInlineSheet ? 1100 : 1000);
+      root.addEventListener("animationend", settleBend, { once: true });
+      window.setTimeout(settleBend, 1000);
 
       const tick = () => {
         mx += (tmx - mx) * 0.18;
@@ -989,44 +994,6 @@ void main() {
 
       bindControls();
 
-      const isInlineCenterpiece = root.classList.contains("washi--inline");
-
-      let unrollReleased = false;
-      const releaseUnroll = () => {
-        if (unrollReleased) return;
-        unrollReleased = true;
-        document.documentElement.classList.add("washi-unroll-done");
-        setLightSpeed();
-        if (videoEl && useVideo) {
-          videoEl.play().catch(() => {});
-        }
-      };
-
-      const holdHeavyLayersForUnroll = () => {
-        if (reduceMotion) {
-          releaseUnroll();
-          return;
-        }
-        lightMount?.setSpeed(0);
-        if (videoEl && isInlineCenterpiece) {
-          videoEl.pause();
-        }
-        const unrollEl = isInlineCenterpiece
-          ? root.closest(".centerpiece")
-          : root;
-        unrollEl?.addEventListener("animationend", releaseUnroll, { once: true });
-        window.setTimeout(releaseUnroll, isInlineCenterpiece ? 1100 : 1000);
-      };
-
-      const notifyReady = () => {
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            document.documentElement.classList.add("washi-ready");
-            holdHeavyLayersForUnroll();
-          }),
-        );
-      };
-
       // Day and night photos embedded in the washi. Both loaded up front so the
       // theme toggle can swap the texture instantly.
       const loadImg = async (src: string | undefined) => {
@@ -1119,7 +1086,12 @@ void main() {
           1920 * 1080,
         );
 
-        notifyReady();
+        // The paper has rendered its first frame. Signal the page (next paint)
+        // so it can reveal the centerpiece in sync with the paper — otherwise the
+        // autoplaying video shows ~1s before the shader finishes on slow networks.
+        requestAnimationFrame(() =>
+          document.documentElement.classList.add("washi-ready"),
+        );
 
         // Swap the embedded photo when the theme flips (day â night).
         if (darkImage && dayImage) {
@@ -1140,7 +1112,6 @@ void main() {
         }
       } catch (err) {
         console.error("[washi] paper mount failed", err);
-        notifyReady();
       }
 
       // Pointer bend works in both modes (full-viewport light shader or the
@@ -1205,20 +1176,7 @@ void main() {
     -webkit-user-select: none;
     user-select: none;
     cursor: default;
-    /* Unroll lives on `.centerpiece` so it starts with the first paper frame. */
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-  :global(html.washi-ready:not(.washi-unroll-done))
-    #washi.washi--inline
-    .washi__layer
-    :global(canvas),
-  :global(html.washi-ready:not(.washi-unroll-done))
-    #washi.washi--inline
-    .washi__video {
-    transform: translateZ(0);
-    backface-visibility: hidden;
+    will-change: transform, opacity;
   }
 
   .washi__layer {
