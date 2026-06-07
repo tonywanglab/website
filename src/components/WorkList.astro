@@ -1,0 +1,34 @@
+---
+import { work } from "../data/work";
+---
+
+<ul class="list">
+  {
+    work.map((item) => (
+      <li class="row">
+        <div>
+          {item.href ? (
+            <a class="row__link" href={item.href}>
+              {item.title}
+            </a>
+          ) : (
+            <span class="row__title">{item.title}</span>
+          )}
+          {item.description && <p class="row__desc">{item.description}</p>}
+        </div>
+        <div class="row__aside">
+          {item.affiliation && <p class="row__affil">{item.affiliation}</p>}
+          <span class="row__meta">{item.year}</span>
+        </div>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+</style>

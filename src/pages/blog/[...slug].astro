@@ -1,0 +1,123 @@
+---
+import { getCollection, render } from "astro:content";
+import type { GetStaticPaths } from "astro";
+import Base from "../../layouts/Base.astro";
+
+export const getStaticPaths = (async () => {
+  const posts = await getCollection("blog", ({ data }) => !data.draft);
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}) satisfies GetStaticPaths;
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+const fmt = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+});
+---
+
+<Base title={`${post.data.title} — Tony Wang`} description={post.data.description}>
+  <article>
+    <p class="back reveal" style="--i: 0">
+      <a class="row__link" id="post-back" href="/blog/">← Writing</a>
+    </p>
+    <header class="reveal" style="--i: 1">
+      <h1 class="title">{post.data.title}</h1>
+      <time class="date" datetime={post.data.pubDate.toISOString()}>
+        {fmt.format(post.data.pubDate)}
+      </time>
+    </header>
+    <div class="prose reveal" style="--i: 2">
+      <Content />
+    </div>
+  </article>
+</Base>
+
+<script is:inline>
+  (function () {
+    const back = document.getElementById("post-back");
+    if (!back) return;
+
+    const fromHome =
+      new URLSearchParams(location.search).get("from") === "home";
+
+    let refPath = "";
+    try {
+      refPath = new URL(document.referrer).pathname;
+    } catch (e) {}
+
+    if (fromHome || refPath === "/" || refPath === "") {
+      back.href = "/#writing";
+      back.textContent = "← Tony Wang";
+    }
+  })();
+</script>
+
+<style>
+  .back {
+    margin: 0 0 1.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .back .row__link {
+    text-decoration: none;
+  }
+  .title {
+    font-size: clamp(1.6rem, 4.5vw, 2.2rem);
+    margin: 0 0 0.4rem;
+  }
+  .date {
+    font-family: var(--font-sans);
+    font-size: var(--label-size);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .prose {
+    margin-top: 2rem;
+    font-family: var(--font-serif);
+    font-size: 1.15rem;
+    line-height: 1.75;
+  }
+  .prose :global(h2) {
+    font-family: var(--font-sans);
+    font-size: 1.1rem;
+    margin: 2.2rem 0 0.6rem;
+  }
+  .prose :global(p) {
+    margin: 0 0 1.2rem;
+  }
+  .prose :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 1.4rem 0 0.4rem;
+  }
+  .prose :global(img + p) {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin: 0 0 1.6rem;
+  }
+  .prose :global(blockquote) {
+    margin: 1.6rem 0;
+    padding-left: 1rem;
+    border-left: 2px solid var(--faint);
+    color: var(--muted);
+    font-style: italic;
+  }
+  .prose :global(a) {
+    color: var(--accent);
+  }
+  .prose :global(ul) {
+    padding-left: 1.2rem;
+  }
+  .prose :global(li) {
+    margin: 0.3rem 0;
+  }
+</style>

@@ -1,0 +1,36 @@
+---
+import { getCollection } from "astro:content";
+import Base from "../../layouts/Base.astro";
+import PostList from "../../components/PostList.astro";
+
+const posts = (await getCollection("blog", ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime(),
+);
+---
+
+<Base title="Writing — Tony Wang" description="Essays and notes by Tony Wang.">
+  <header class="reveal" style="--i: 0">
+    <p class="back"><a class="row__link" href="/">← Tony Wang</a></p>
+    <h1 class="title">Writing</h1>
+  </header>
+
+  <section class="reveal" style="--i: 1">
+    <PostList posts={posts} />
+  </section>
+</Base>
+
+<style>
+  .back {
+    margin: 0 0 1.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .back .row__link {
+    text-decoration: none;
+  }
+  .title {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    margin: 0 0 1.5rem;
+  }
+</style>

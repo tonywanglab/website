@@ -1,0 +1,1301 @@
+---
+// Backlit washi â custom GLSL light beneath, Paper Shaders paperTexture on top.
+interface Props {
+  lightX?: number;
+  lightY?: number;
+  glow?: number;
+  bloom?: number;
+  flicker?: number;
+  leafX?: number;
+  leafY?: number;
+  leafRotation?: number;
+  leafSize?: number;
+  leafShadow?: number;
+  leafShaft?: number;
+  leafCoverage?: number;
+  leafSway?: number;
+  leafBlur?: number;
+  controls?: boolean;
+  /** Render as an in-flow, sized box (a centerpiece) instead of a fixed,
+   *  full-viewport background. The host element controls its dimensions. */
+  inline?: boolean;
+  /** When set, plays this video as the moving tree-shadow backdrop instead of
+   *  the GLSL backlight + static maple shadow. The washi paper still overlays. */
+  leafVideo?: string;
+  /** Photo embedded in the paper-texture shader (fit: contain, centered). */
+  paperImage?: string;
+  /** Embedded photo used in dark mode instead of `paperImage`. */
+  paperImageDark?: string;
+}
+
+const {
+  lightX = 0.5,
+  lightY = 0.28,
+  glow = 0.7,
+  bloom = 0.55,
+  flicker = 0.22,
+  leafX = 0.5,
+  leafY = 0.5,
+  leafRotation = 0,
+  leafSize = 0.85,
+  leafShadow = 0.38,
+  leafShaft = 1,
+  leafCoverage = 0.5,
+  leafSway = 1,
+  leafBlur = 0.018,
+  controls = false,
+  inline = false,
+  leafVideo,
+  paperImage,
+  paperImageDark,
+} = Astro.props;
+---
+
+<div
+  id="washi"
+  class={inline ? "washi--inline" : undefined}
+  aria-hidden="true"
+  data-lightx={lightX}
+  data-lighty={lightY}
+  data-glow={glow}
+  data-bloom={bloom}
+  data-flicker={flicker}
+  data-leafx={leafX}
+  data-leafy={leafY}
+  data-leafrotation={leafRotation}
+  data-leafsize={leafSize}
+  data-leafshadow={leafShadow}
+  data-leafshaft={leafShaft}
+  data-leafcoverage={leafCoverage}
+  data-leafsway={leafSway}
+  data-leafblur={leafBlur}
+  data-leafvideo={leafVideo}
+  data-paperimage={paperImage}
+  data-paperimagedark={paperImageDark}
+>
+  {
+    leafVideo && (
+      <video
+        id="washi-video"
+        class="washi__layer washi__video"
+        src={leafVideo}
+        autoplay
+        loop
+        muted
+        playsinline
+      />
+    )
+  }
+  <div id="washi-light" class="washi__layer"></div>
+  <div id="washi-paper" class="washi__layer washi__paper"></div>
+  {leafVideo && <div id="washi-tint" class="washi__layer washi__tint" />}
+  {leafVideo && <div id="washi-sun" class="washi__layer washi__sun" />}
+  {leafVideo && <div id="washi-fireflies" class="washi__layer washi__fireflies" />}
+</div>
+
+{
+  controls && (
+    <form id="washi-controls" aria-label="Light controls">
+      <div class="sc-row">
+        <label for="sc-lightx">Position X</label>
+        <input id="sc-lightx" type="range" min="0" max="1" step="0.01" value={lightX} />
+        <output id="sc-lightx-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-lighty">Position Y</label>
+        <input id="sc-lighty" type="range" min="0" max="1" step="0.01" value={lightY} />
+        <output id="sc-lighty-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-glow">Glow</label>
+        <input id="sc-glow" type="range" min="0.15" max="1.5" step="0.01" value={glow} />
+        <output id="sc-glow-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-bloom">Bloom</label>
+        <input id="sc-bloom" type="range" min="0" max="1" step="0.01" value={bloom} />
+        <output id="sc-bloom-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-flicker">Flicker</label>
+        <input id="sc-flicker" type="range" min="0" max="1" step="0.01" value={flicker} />
+        <output id="sc-flicker-val" class="sc-val" />
+      </div>
+      <p class="sc-section">Leaves</p>
+      <div class="sc-row">
+        <label for="sc-leafx">Leaf X</label>
+        <input id="sc-leafx" type="range" min="0" max="1" step="0.01" value={leafX} />
+        <output id="sc-leafx-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-leafy">Leaf Y</label>
+        <input id="sc-leafy" type="range" min="0" max="1" step="0.01" value={leafY} />
+        <output id="sc-leafy-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-leafrot">Rotate</label>
+        <input id="sc-leafrot" type="range" min="-180" max="180" step="1" value={leafRotation} />
+        <output id="sc-leafrot-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-leafsize">Size</label>
+        <input id="sc-leafsize" type="range" min="0.08" max="5" step="0.01" value={leafSize} />
+        <output id="sc-leafsize-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-leafshadow">Shadow</label>
+        <input id="sc-leafshadow" type="range" min="0.15" max="0.7" step="0.01" value={leafShadow} />
+        <output id="sc-leafshadow-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-leafshaft">Shafts</label>
+        <input id="sc-leafshaft" type="range" min="0" max="1.5" step="0.01" value={leafShaft} />
+        <output id="sc-leafshaft-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-leafcoverage">Coverage</label>
+        <input id="sc-leafcoverage" type="range" min="0" max="1" step="0.01" value={leafCoverage} />
+        <output id="sc-leafcoverage-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-leafsway">Sway</label>
+        <input id="sc-leafsway" type="range" min="0" max="2.5" step="0.01" value={leafSway} />
+        <output id="sc-leafsway-val" class="sc-val" />
+      </div>
+      <div class="sc-row">
+        <label for="sc-leafblur">Blur</label>
+        <input id="sc-leafblur" type="range" min="0" max="0.06" step="0.001" value={leafBlur} />
+        <output id="sc-leafblur-val" class="sc-val" />
+      </div>
+      <button id="sc-copy" type="button" class="sc-copy">Copy config</button>
+    </form>
+  )
+}
+
+<script>
+  import {
+    ShaderMount,
+    paperTextureFragmentShader,
+    getShaderColorFromString,
+    getShaderNoiseTexture,
+    ShaderFitOptions,
+  } from "@paper-design/shaders";
+
+  // Shared GLSL injected into BOTH the custom light shader and the library paper
+  // shader, so the pointer bend and the torn deckle edge are computed identically
+  // in each layer and stay perfectly registered. Requires u_resolution, u_mouse
+  // (cursor in uv space, y up) and u_press (0->1) to already be declared.
+  const washiShared = `
+float washiHash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+float washiVnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = washiHash(i);
+  float b = washiHash(i + vec2(1.0, 0.0));
+  float c = washiHash(i + vec2(0.0, 1.0));
+  float d = washiHash(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+float washiFbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 4; i++) { v += a * washiVnoise(p); p *= 2.03; a *= 0.5; }
+  return v;
+}
+// Bend strength under the cursor: a broad Gaussian so a whole SIDE of the sheet
+// flexes, not a pinpoint dimple. Aspect-corrected so the falloff stays round.
+float washiBend(vec2 uv) {
+  float aspect = u_resolution.x / max(u_resolution.y, 1.0);
+  vec2 d = uv - u_mouse;
+  d.x *= aspect;
+  float dist = length(d);
+  // Broad, smooth dip matching the lens warp â no plateau, no crease.
+  return u_press * (1.0 - smoothstep(0.0, 0.62, dist));
+}
+// Smooth lens depression â no plateau, no crease. Just slightly firmer than
+// water: a broad, shallow bend, as if pressing slightly thicker paper that
+// resists and so deforms gently over a wide area. The displacement is the
+// gradient of a smooth bump, which is zero at the center (no dimple cusp).
+vec2 washiWarp(vec2 uv) {
+  float aspect = u_resolution.x / max(u_resolution.y, 1.0);
+  vec2 d = uv - u_mouse;
+  d.x *= aspect;
+  float dist = length(d);
+  float R = 0.62;
+  float t = clamp(dist / R, 0.0, 1.0);
+  float grad = 6.0 * t * (1.0 - t) / R;
+  vec2 dir = dist > 1e-4 ? d / dist : vec2(0.0);
+  dir.x /= aspect;
+  return -dir * grad * u_press * 0.005;
+}
+// Torn deckle edge as an alpha. Rounded-rect SDF, its extent nibbled by low-freq
+// noise for smooth-but-imperfect tears, then a soft fringe ramp for the wispy,
+// less-opaque 1-3px border. Evaluated on the WARPED uv so the edge bends too.
+float washiDeckleSDF(vec2 uv) {
+  float aspect = u_resolution.x / max(u_resolution.y, 1.0);
+  vec2 p = uv - 0.5;
+  p.x *= aspect;
+  vec2 b = vec2(0.5 * aspect, 0.5) - 0.024;
+  float tear = (washiFbm(uv * vec2(6.5, 4.2) + 3.1) - 0.5) * 0.02
+             + (washiFbm(uv * vec2(15.0, 11.0)) - 0.5) * 0.006;
+  b -= tear;
+  float r = 0.016;
+  vec2 q = abs(p) - b + r;
+  return min(max(q.x, q.y), 0.0) + length(max(q, vec2(0.0))) - r;
+}
+float washiDeckle(vec2 uv) {
+  float fringe = 0.004;
+  return 1.0 - smoothstep(-fringe, fringe, washiDeckleSDF(uv));
+}
+// Laminated deckle: the stepped paper plies of the homepage centerpiece, now in
+// the shader. A few thin bands just inside the torn edge darken the paper â
+// outermost darkest (the old #c8c6c2 ply), lightening inward (#d4d2ce, #dedcd8)
+// â so the sheet reads as layered handmade paper. Driven by the SAME bent-uv
+// SDF as the edge, so the plies flex with the pointer instead of detaching.
+vec3 washiPly(vec2 uv, vec3 color) {
+  float sdf = washiDeckleSDF(uv);
+  float rw = 0.0035;
+  float aa = 0.0009;
+  float inEdge = 1.0 - smoothstep(-aa, aa, sdf);
+  float in1 = 1.0 - smoothstep(-rw - aa, -rw + aa, sdf);
+  float in2 = 1.0 - smoothstep(-2.0 * rw - aa, -2.0 * rw + aa, sdf);
+  float in3 = 1.0 - smoothstep(-3.0 * rw - aa, -3.0 * rw + aa, sdf);
+  float darken = 0.11 * (inEdge - in1) + 0.09 * (in1 - in2) + 0.07 * (in2 - in3);
+  return color * (1.0 - darken);
+}
+// Face-edge vignette on the bent uv so the lit rim flexes with the pointer.
+vec3 washiFaceRim(vec2 uv, vec3 color) {
+  float bottom = smoothstep(0.34, 0.0, uv.y) * 0.3;
+  float left = smoothstep(0.24, 0.0, uv.x) * 0.22;
+  float right = smoothstep(0.24, 0.0, 1.0 - uv.x) * 0.22;
+  float topLit = smoothstep(0.05, 0.0, 1.0 - uv.y) * 0.11;
+  color *= 1.0 - bottom - left - right;
+  color += vec3(1.0, 0.99, 0.96) * topLit;
+  return color;
+}
+`;
+
+  const lightFragmentShader = `#version 300 es
+precision mediump float;
+
+uniform float u_time;
+uniform vec2 u_resolution;
+
+uniform float u_lightX;
+uniform float u_lightY;
+uniform float u_glow;
+uniform float u_bloom;
+uniform float u_flicker;
+uniform float u_leafX;
+uniform float u_leafY;
+uniform float u_leafRotation;
+uniform float u_leafSize;
+uniform float u_leafShadow;
+uniform float u_leafShaft;
+uniform float u_leafCoverage;
+uniform float u_leafSway;
+uniform float u_leafBlur;
+
+// Pointer bend: u_mouse is the cursor in uv space (y up), u_press eases 0->1
+// while the pointer is over the sheet. Together they flex the whole near side of
+// the paper toward the cursor, like pressing into taut cloth.
+uniform vec2 u_mouse;
+uniform float u_press;
+${washiShared}
+// The maple-leaf photograph, used as the shadow mask. ShaderMount uploads the
+// image unflipped, so texture coord t=0 is the top row. The companion
+// AspectRatio uniform is filled in automatically when the texture loads.
+uniform sampler2D u_leafTex;
+uniform float u_leafTexAspectRatio;
+
+uniform vec4 u_colorPaper;
+uniform vec4 u_colorDark;
+uniform vec4 u_colorBloom;
+uniform vec4 u_colorHorizon;
+
+out vec4 fragColor;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v += a * vnoise(p);
+    p *= 2.03;
+    a *= 0.5;
+  }
+  return v;
+}
+
+vec2 mapleSway(vec2 world, float time, float swayAmt) {
+  float height = world.y;
+  float depth = world.x;
+
+  // Pivot at trunk base â canopy tips swing further than lower branches.
+  float arm = pow(smoothstep(0.05, 0.95, height), 1.4);
+
+  // One slow pendulum for the whole tree, with a soft secondary harmonic.
+  float theta = sin(time * 0.21 + 0.35) * 0.032
+              + sin(time * 0.13 + 1.1) * 0.014;
+
+  // Gentle wind only modulates swing amplitude, not ripples across the surface.
+  float gust = fbm(vec2(time * 0.035, 2.8));
+  float wind = smoothstep(0.5, 0.82, gust);
+  theta *= 1.0 + wind * 0.45 * sin(time * 0.17 + gust * 2.5);
+
+  // Slight depth lag so outer branches trail the trunk â not a traveling wave.
+  float lag = depth * 0.06;
+  float branchTheta = theta * (1.0 - lag * 0.35)
+                    + sin(time * 0.21 + 0.35 - lag) * 0.008 * arm;
+
+  // Arc displacement from rotation about the base pivot.
+  float swingX = arm * sin(branchTheta);
+  float swingY = arm * (cos(branchTheta) - 1.0) * 0.3;
+
+  return vec2(swingX, swingY) * swayAmt;
+}
+
+// Sample the maple-leaf photograph as the shadow mask. The image is dark
+// foliage on bright paper, so its inverted luminance is how much backlight each
+// leaf blocks. The image's bottom-right is pinned to anchorBR and it grows up
+// and to the left from there, so changing Size extends the leaf upward off a
+// fixed bottom edge rather than dropping the bottom down.
+float leafMask(vec2 world, vec2 anchorBR) {
+  float texAspect = max(u_leafTexAspectRatio, 0.01);
+  float leafH = max(u_leafSize, 0.001);
+  float leafW = leafH * texAspect;
+
+  float tu = (world.x - (anchorBR.x - leafW)) / leafW;
+  float tv = (anchorBR.y + leafH - world.y) / leafH;
+
+  // Outside the image rect the paper is clear â no leaf, no shadow.
+  if (tu < 0.0 || tu > 1.0 || tv < 0.0 || tv > 1.0) return 0.0;
+
+  vec3 texc = texture(u_leafTex, vec2(tu, tv)).rgb;
+  float lum = dot(texc, vec3(0.299, 0.587, 0.114));
+  float dark = 1.0 - lum;
+
+  // Coverage lifts the faint penumbra into shadow: higher pulls more of the
+  // soft grey halo around each leaf into the silhouette.
+  float low = mix(0.55, 0.04, u_leafCoverage);
+  return smoothstep(low, low + 0.22, dark);
+}
+
+void main() {
+  vec2 scr = gl_FragCoord.xy / u_resolution;
+  float aspect = u_resolution.x / max(u_resolution.y, 1.0);
+
+  // Bend the whole near side toward the cursor: warp the sampling uv, so the
+  // backlight and leaf shadows (and the deckle edge below) all curve together.
+  vec2 uv = scr + washiWarp(scr);
+
+  vec2 world = vec2(uv.x * aspect, uv.y);
+
+  float flick = 1.0;
+  vec2 jitter = vec2(0.0);
+  if (u_flicker > 0.0001) {
+    float n1 = fbm(vec2(u_time * 1.6, 11.3));
+    float n2 = vnoise(vec2(u_time * 8.5, 4.0));
+    flick = 1.0 + u_flicker * (0.65 * (n1 - 0.5) + 0.55 * (n2 - 0.5));
+    flick = clamp(flick, 0.7, 1.2);
+    jitter = u_flicker * 0.014 * vec2(
+      fbm(vec2(u_time * 2.2, 1.0)) - 0.5,
+      fbm(vec2(7.0, u_time * 2.0)) - 0.5
+    );
+  }
+
+  vec2 lightPos = vec2(u_lightX, 1.0 - u_lightY) + jitter;
+  vec2 d = uv - lightPos;
+  d.x *= aspect;
+  float dist = length(d);
+  float r = max(u_glow, 0.02);
+
+  float core = exp(-(dist * dist) / (2.0 * pow(r * 0.35, 2.0)));
+  float falloff = exp(-(dist * dist) / (2.0 * r * r));
+  float lit = clamp(0.5 * core + 0.5 * falloff, 0.0, 1.0);
+
+  // Pin the photograph by its BOTTOM-right edge. Leaf X/Y nudge it from there.
+  // The bottom edge sits a fixed distance below the top-right corner â calibrated
+  // to the default Size so flipping to upward growth doesn't shift the image â
+  // and increasing Size then grows the leaf upward off that fixed bottom.
+  const float LEAF_BASE_SIZE = 0.85;
+  vec2 corner = vec2(aspect, 1.0)
+              + vec2((u_leafX - 0.5) * 2.0, (u_leafY - 0.5) * 2.0);
+  vec2 anchorBR = vec2(corner.x, corner.y - LEAF_BASE_SIZE);
+
+  // Sway is mostly a slow pendulum rotation about the image's base â as if the
+  // branch hinges at the bottom â gusted a little by wind, with only a whisper
+  // of translational drift left over.
+  float swayPhase = sin(u_time * 0.21 + 0.35) * 0.045
+                  + sin(u_time * 0.13 + 1.1) * 0.018;
+  float gust = fbm(vec2(u_time * 0.035, 2.8));
+  swayPhase *= 1.0 + smoothstep(0.5, 0.82, gust) * 0.4;
+  float swayAngle = u_leafSway * swayPhase;
+
+  // Rotate (manual + sway) about the bottom-center of the image â the midpoint
+  // of that same fixed bottom edge â so the leaf cluster pivots on its base and
+  // the top swings.
+  float leafH = max(u_leafSize, 0.001);
+  float leafW = leafH * max(u_leafTexAspectRatio, 0.01);
+  vec2 pivot = vec2(anchorBR.x - leafW * 0.5, anchorBR.y);
+  vec2 rel = world - pivot;
+  float rad = u_leafRotation * 0.01745329252 + swayAngle;
+  float c = cos(rad);
+  float s = sin(rad);
+  vec2 leafWorld = pivot + vec2(rel.x * c - rel.y * s, rel.x * s + rel.y * c);
+  vec2 swayed = leafWorld + mapleSway(leafWorld, u_time, u_leafSway * 0.18);
+
+  // A 4 s breath: the leaves pulse darkest -> lightest and back. breathe is
+  // 1 at the darkest point of the cycle, 0 at the lightest.
+  float breathe = 0.5 + 0.5 * sin(u_time * 1.5708);
+
+  // The canopy hangs between the lamp and the paper, so every leaf throws a
+  // soft penumbra onto the screen. Average a golden-angle ring of taps to blur
+  // the shadow's edge. The same breath drives the blur from 0.01 at the darkest
+  // (crisp, pressed against the paper) to 0.02 at the lightest (softest, as if
+  // the foliage drifts off the paper as it pales). u_leafBlur still gates it on.
+  float breatheBlur = mix(0.02, 0.01, breathe);
+  float foliage;
+  if (u_leafBlur < 0.0008) {
+    foliage = leafMask(swayed, anchorBR);
+  } else {
+    float acc = leafMask(swayed, anchorBR) * 0.2;
+    float wsum = 0.2;
+    for (int i = 0; i < 8; i++) {
+      float a = float(i) * 2.39996323;
+      float rr = (float(i) + 0.5) / 8.0;
+      vec2 o = vec2(cos(a), sin(a)) * sqrt(rr) * breatheBlur;
+      float w = 1.0 - rr * 0.55;
+      acc += leafMask(swayed + o, anchorBR) * w;
+      wsum += w;
+    }
+    foliage = acc / wsum;
+  }
+
+  // Leaves subtract the backlight instead of adding to it. u_leafShadow is the
+  // fraction of light that still seeps through the deepest shade.
+  float shade = mix(1.0, u_leafShadow, foliage);
+  lit *= shade * flick;
+
+  float horizon = smoothstep(0.08, 0.72, 1.0 - uv.y);
+  float sunset = smoothstep(0.0, 0.85, lit) * (0.35 + 0.65 * horizon);
+  vec3 shadowCol = mix(u_colorDark.rgb, u_colorHorizon.rgb, horizon * 0.55);
+  vec3 lightCol = mix(u_colorPaper.rgb, u_colorBloom.rgb, sunset * 0.45);
+  vec3 col = mix(shadowCol, lightCol, lit);
+
+  // A faint warm rim where dappled light squeezes past the blurred leaf edges.
+  float rim = clamp(foliage * (1.0 - foliage) * 4.0, 0.0, 1.0);
+  col += u_colorBloom.rgb * rim * lit * u_leafShaft * 0.06;
+
+  float bloomAmt = clamp(u_bloom, 0.0, 1.0);
+  float bloomWide = exp(-(dist * dist) / (2.0 * pow(r * 2.4, 2.0)));
+  float bloomMid = exp(-(dist * dist) / (2.0 * pow(r * 1.1, 2.0)));
+  float bloom = bloomAmt * shade * flick * (0.45 * bloomWide + 0.38 * bloomMid + 0.5 * core);
+  col += u_colorBloom.rgb * bloom * (0.7 + 0.3 * horizon);
+
+  // A slow 4 s breath darkening the leaf silhouettes ~18% and easing back, plus
+  // a darkness flicker locked to the lamp: as the flame dips (flick < 1) the
+  // shadows deepen, as it flares they lift â synced to the same flicker signal.
+  // Applied to the final color (not the dim corner backlight) so it reads, and
+  // only where foliage falls.
+  float flickerShade = 1.0 - flick;
+  col *= 1.0 - foliage * (0.18 * breathe + 0.6 * flickerShade);
+
+  // Shade the bend as a soft, light depression: a gentle, broad dip in the
+  // backlight under the cursor â no hard rim, no bright dimple.
+  float bend = washiBend(scr);
+  col *= 1.0 - bend * 0.05;
+
+  // Torn deckle edge â alpha-cut the sheet on the bent uv so the dark page shows
+  // around it and the edge curves with the flex.
+  fragColor = vec4(col, washiDeckle(uv));
+}
+`;
+
+  const readyImage = (img: HTMLImageElement | undefined) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      if (!img) {
+        reject(new Error("missing image"));
+        return;
+      }
+      if (img.complete && img.naturalWidth > 0) {
+        resolve(img);
+        return;
+      }
+      img.addEventListener("load", () => resolve(img), { once: true });
+      img.addEventListener(
+        "error",
+        () => reject(new Error("image failed to load")),
+        { once: true },
+      );
+    });
+
+  const root = document.getElementById("washi");
+  const lightEl = document.getElementById("washi-light");
+  const paperEl = document.getElementById("washi-paper");
+
+  if (root && lightEl && paperEl) {
+    const ds = root.dataset;
+    const num = (v: string | undefined, fallback: number) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    // When a tree-shadow video backdrop is supplied, it replaces the GLSL
+    // backlight + static maple shadow; only the washi paper still mounts.
+    const useVideo = Boolean(ds.leafvideo);
+
+    // Scatter small flickering fireflies across the top half of the night sky
+    // (CSS-gated to dark mode) so the scene reads whimsical, not creepy.
+    const fireflyEl = document.getElementById("washi-fireflies");
+    if (fireflyEl && useVideo) {
+      const rnd = (min: number, max: number) =>
+        (min + Math.random() * (max - min)).toFixed(1) + "px";
+      for (let i = 0; i < 7; i++) {
+        const d = document.createElement("span");
+        d.className = "washi__firefly";
+        const size = 7 + Math.random() * 9;
+        const t = (size - 7) / 9;
+        // Larger fireflies sit farther back â softer and brighter to read through the blur.
+        const blur = 1 + t * 3.2;
+        const bright = 1 + t * 0.55;
+        const peak = 0.55 + t * 0.35 + Math.random() * 0.15;
+        d.style.left = (4 + Math.random() * 92).toFixed(2) + "%";
+        d.style.top = (3 + Math.random() * 44).toFixed(2) + "%";
+        d.style.width = size.toFixed(2) + "px";
+        d.style.height = size.toFixed(2) + "px";
+        d.style.setProperty("--blur", blur.toFixed(2) + "px");
+        d.style.setProperty("--bright", bright.toFixed(2));
+        d.style.setProperty("--dur", (2.2 + Math.random() * 3).toFixed(2) + "s");
+        d.style.setProperty("--delay", (-Math.random() * 5).toFixed(2) + "s");
+        d.style.setProperty("--peak", peak.toFixed(2));
+        // Slow wandering path â random waypoints the dot meanders between.
+        d.style.setProperty("--dx1", rnd(-22, 22));
+        d.style.setProperty("--dy1", rnd(-16, 16));
+        d.style.setProperty("--dx2", rnd(-22, 22));
+        d.style.setProperty("--dy2", rnd(-16, 16));
+        d.style.setProperty("--dx3", rnd(-22, 22));
+        d.style.setProperty("--dy3", rnd(-16, 16));
+        d.style.setProperty("--drift-dur", (11 + Math.random() * 11).toFixed(1) + "s");
+        d.style.setProperty("--drift-delay", (-Math.random() * 14).toFixed(1) + "s");
+        fireflyEl.appendChild(d);
+      }
+    }
+
+    // The tree shadow eases to 0.9× speed at night for a calmer, dreamier drift.
+    const videoEl = document.getElementById("washi-video") as HTMLVideoElement | null;
+    if (videoEl && useVideo) {
+      const syncRate = () => {
+        videoEl.playbackRate =
+          document.documentElement.dataset.theme === "dark" ? 0.9 : 1;
+      };
+      syncRate();
+      videoEl.addEventListener("loadedmetadata", syncRate);
+      new MutationObserver(syncRate).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+      });
+    }
+
+    const lightState = {
+      lightX: num(ds.lightx, 0.5),
+      lightY: num(ds.lighty, 0.32),
+      glow: num(ds.glow, 0.7),
+      bloom: num(ds.bloom, 0.55),
+      flicker: reduceMotion ? 0 : num(ds.flicker, 0.22),
+      leafX: num(ds.leafx, 0.5),
+      leafY: num(ds.leafy, 0.5),
+      leafRotation: num(ds.leafrotation, 0),
+      leafSize: num(ds.leafsize, 0.85),
+      leafShadow: num(ds.leafshadow, 0.38),
+      leafShaft: num(ds.leafshaft, 1),
+      leafCoverage: num(ds.leafcoverage, 0.5),
+      leafSway: reduceMotion ? 0 : num(ds.leafsway, 1),
+      leafBlur: num(ds.leafblur, 0.018),
+    };
+
+    let lightMount: ShaderMount | null = null;
+    let paperMount: ShaderMount | null = null;
+
+    // Inline mode = the homepage centerpiece: deckle, ply rings, and face rim
+    // all live in the paper shader on the bent uv so the edge flexes with warp.
+    const isInline = root.classList.contains("washi--inline");
+
+    // Inject the shared bend into the library paper shader: warp the grain UV up
+    // front so the fibers/crumples flex with the pointer. u_mouse/u_press are
+    // declared just before the shared funcs.
+    const injectPaperWarp = (src: string) =>
+      src
+        .replace(
+          "in vec2 v_imageUV;",
+          `uniform vec2 u_mouse;\nuniform float u_press;\nin vec2 v_imageUV;\n${washiShared}`,
+        )
+        .replace(
+          "vec2 imageUV = v_imageUV;\n  vec2 patternUV = v_imageUV - .5;",
+          "vec2 washiScr = gl_FragCoord.xy / u_resolution;\n  vec2 washiD = washiWarp(washiScr);\n  vec2 imageUV = v_imageUV + washiD;\n  vec2 patternUV = (v_imageUV + washiD) - .5;",
+        );
+
+    const warpedPaperShader = isInline
+      // Centerpiece: warp + a soft depression shadow (the paper multiplies over
+      // the video, so darkening it locally reads as a pressed-in dip) + the same
+      // torn deckle the standalone study cuts, evaluated on the bent uv so the
+      // sheet's edge flexes with the pointer instead of sitting in a static CSS
+      // mask. The video/sun keep their own (static) deckle silhouette in CSS.
+      ? injectPaperWarp(paperTextureFragmentShader).replace(
+          "fragColor = vec4(color, opacity);",
+          "vec2 bentUv = washiScr + washiD;\n  color *= 1.0 - washiBend(washiScr) * 0.06;\n  color = washiPly(bentUv, color);\n  color = washiFaceRim(bentUv, color);\n  fragColor = vec4(color, opacity * washiDeckle(bentUv));",
+        )
+      // Standalone: warp + the in-shader torn deckle edge (its only edge mask).
+      : injectPaperWarp(paperTextureFragmentShader).replace(
+          "fragColor = vec4(color, opacity);",
+          "fragColor = vec4(color, opacity * washiDeckle(washiScr + washiD));",
+        );
+
+    const setLightSpeed = () => {
+      if (!lightMount) return;
+      const animating =
+        !reduceMotion && (lightState.flicker > 0.0001 || lightState.leafSway > 0.0001);
+      lightMount.setSpeed(animating ? 1 : 0);
+    };
+
+    // Pointer dimple: ease u_mouse toward the cursor and u_press toward 1 while
+    // the pointer is on the page, decaying back to 0 when it leaves. The easing
+    // rAF only spins while values are still settling, then stops â no idle cost.
+    const bindPointerDimple = () => {
+      if (reduceMotion) return;
+      let mx = 0.5, my = 0.5;
+      let tmx = 0.5, tmy = 0.5;
+      let press = 0, pressTarget = 0;
+      let raf: number | null = null;
+
+      const tick = () => {
+        mx += (tmx - mx) * 0.18;
+        my += (tmy - my) * 0.18;
+        press += (pressTarget - press) * 0.1;
+        const u = {
+          u_mouse: [mx, my] as [number, number],
+          u_press: press,
+        };
+        lightMount?.setUniforms(u);
+        paperMount?.setUniforms(u);
+        const settled =
+          Math.abs(tmx - mx) < 5e-4 &&
+          Math.abs(tmy - my) < 5e-4 &&
+          Math.abs(pressTarget - press) < 1e-3;
+        raf = settled ? null : requestAnimationFrame(tick);
+        if (settled) press = pressTarget;
+      };
+      const kick = () => {
+        if (raf === null) raf = requestAnimationFrame(tick);
+      };
+
+      // Map the cursor into the sheet's own box (so it works whether washi is the
+      // full-viewport background or an inline centerpiece) and only press while
+      // the pointer is actually over the sheet.
+      window.addEventListener(
+        "pointermove",
+        (e) => {
+          const r = root.getBoundingClientRect();
+          if (r.width < 1 || r.height < 1) return;
+          const x = (e.clientX - r.left) / r.width;
+          const y = (e.clientY - r.top) / r.height;
+          const inside = x >= 0 && x <= 1 && y >= 0 && y <= 1;
+          tmx = Math.min(Math.max(x, 0), 1);
+          tmy = 1 - Math.min(Math.max(y, 0), 1);
+          pressTarget = inside ? 1 : 0;
+          kick();
+        },
+        { passive: true },
+      );
+      const release = () => {
+        pressTarget = 0;
+        kick();
+      };
+      document.addEventListener("pointerleave", release);
+      window.addEventListener("blur", release);
+    };
+
+    const bindControls = () => {
+      if (!lightMount) return;
+      const bind = (id: string, key: keyof typeof lightState, uniform: string) => {
+        const input = document.getElementById(id) as HTMLInputElement | null;
+        if (!input) return;
+        input.addEventListener("input", () => {
+          const v = Number(input.value);
+          lightState[key] = v;
+          lightMount?.setUniforms({ [uniform]: v });
+          if (key === "flicker" || key === "leafSway") setLightSpeed();
+        });
+      };
+      bind("sc-lightx", "lightX", "u_lightX");
+      bind("sc-lighty", "lightY", "u_lightY");
+      bind("sc-glow", "glow", "u_glow");
+      bind("sc-bloom", "bloom", "u_bloom");
+      bind("sc-flicker", "flicker", "u_flicker");
+      bind("sc-leafx", "leafX", "u_leafX");
+      bind("sc-leafy", "leafY", "u_leafY");
+      bind("sc-leafrot", "leafRotation", "u_leafRotation");
+      bind("sc-leafsize", "leafSize", "u_leafSize");
+      bind("sc-leafshadow", "leafShadow", "u_leafShadow");
+      bind("sc-leafshaft", "leafShaft", "u_leafShaft");
+      bind("sc-leafcoverage", "leafCoverage", "u_leafCoverage");
+      bind("sc-leafsway", "leafSway", "u_leafSway");
+      bind("sc-leafblur", "leafBlur", "u_leafBlur");
+
+      // Mirror each slider's live value into its readout so a final config can
+      // be read off directly. Maps slider id -> the WashiScreen prop name.
+      const propBySlider: Record<string, string> = {
+        "sc-lightx": "lightX",
+        "sc-lighty": "lightY",
+        "sc-glow": "glow",
+        "sc-bloom": "bloom",
+        "sc-flicker": "flicker",
+        "sc-leafx": "leafX",
+        "sc-leafy": "leafY",
+        "sc-leafrot": "leafRotation",
+        "sc-leafsize": "leafSize",
+        "sc-leafshadow": "leafShadow",
+        "sc-leafshaft": "leafShaft",
+        "sc-leafcoverage": "leafCoverage",
+        "sc-leafsway": "leafSway",
+        "sc-leafblur": "leafBlur",
+      };
+      for (const id of Object.keys(propBySlider)) {
+        const input = document.getElementById(id) as HTMLInputElement | null;
+        const out = document.getElementById(`${id}-val`);
+        if (!input || !out) continue;
+        const sync = () => {
+          out.textContent = input.value;
+        };
+        input.addEventListener("input", sync);
+        sync();
+      }
+
+      const copyBtn = document.getElementById("sc-copy");
+      copyBtn?.addEventListener("click", async () => {
+        const lines = Object.entries(propBySlider).map(([id, prop]) => {
+          const input = document.getElementById(id) as HTMLInputElement | null;
+          return `  ${prop}={${input?.value ?? ""}}`;
+        });
+        const config = `<WashiScreen\n${lines.join("\n")}\n/>`;
+        try {
+          await navigator.clipboard.writeText(config);
+          copyBtn.textContent = "Copied!";
+        } catch {
+          // Clipboard can be blocked (e.g. non-secure context); log as fallback.
+          console.log(config);
+          copyBtn.textContent = "Logged to console";
+        }
+        window.setTimeout(() => {
+          copyBtn.textContent = "Copy config";
+        }, 1400);
+      });
+    };
+
+    const init = async () => {
+      // The GLSL light samples u_leafTex for its leaf shadow. With the maple
+      // photo it casts the static dapple; in video mode we feed a 1Ã1 white
+      // pixel so foliage reads as 0 (the video supplies the moving shadows) and
+      // the light is a pure glow â recoloured to cool moonlight below.
+      let leafImage: HTMLImageElement | undefined;
+      try {
+        if (useVideo) {
+          const c = document.createElement("canvas");
+          c.width = c.height = 1;
+          const cx = c.getContext("2d");
+          if (cx) {
+            cx.fillStyle = "#fff";
+            cx.fillRect(0, 0, 1, 1);
+          }
+          const wi = new Image();
+          wi.src = c.toDataURL();
+          leafImage = await readyImage(wi);
+        } else {
+          const li = new Image();
+          li.src = "/maple-leaves.png";
+          leafImage = await readyImage(li);
+        }
+      } catch (err) {
+        console.error("[washi] leaf image failed", err);
+      }
+
+      // Cool moonlight (white with a faint blue/purple cast) for the video
+      // centerpiece â shown only at night, CSS-gated and multiplied over the
+      // video; the warm lantern palette is used everywhere else.
+      const palette = useVideo
+        ? {
+            paper: "#e9eafe",
+            dark: "#1a1d33",
+            bloom: "#dee2ff",
+            horizon: "#3b3f66",
+          }
+        : {
+            paper: "#f2b87a",
+            dark: "#3a2520",
+            bloom: "#ff9a5c",
+            horizon: "#8b3d2e",
+          };
+
+      try {
+        lightMount = new ShaderMount(
+          lightEl,
+          lightFragmentShader,
+          {
+            u_lightX: lightState.lightX,
+            u_lightY: lightState.lightY,
+            u_glow: lightState.glow,
+            u_bloom: lightState.bloom,
+            u_flicker: lightState.flicker,
+            u_leafX: lightState.leafX,
+            u_leafY: lightState.leafY,
+            u_leafRotation: lightState.leafRotation,
+            u_leafSize: lightState.leafSize,
+            u_leafShadow: lightState.leafShadow,
+            u_leafShaft: lightState.leafShaft,
+            u_leafCoverage: lightState.leafCoverage,
+            u_leafSway: lightState.leafSway,
+            u_leafBlur: lightState.leafBlur,
+            u_mouse: [0.5, 0.5],
+            u_press: 0,
+            ...(leafImage ? { u_leafTex: leafImage } : {}),
+            u_leafTexAspectRatio: 1,
+            u_colorPaper: getShaderColorFromString(palette.paper),
+            u_colorDark: getShaderColorFromString(palette.dark),
+            u_colorBloom: getShaderColorFromString(palette.bloom),
+            u_colorHorizon: getShaderColorFromString(palette.horizon),
+          },
+          undefined,
+          reduceMotion ? 0 : 1,
+          0,
+          2,
+          // The backlight is a soft, low-frequency glow with no fine detail, so
+          // rendering it at ~half native retina resolution is imperceptible while
+          // cutting fragment-shader invocations (the per-pixel leaf texture +
+          // blur loop is heavy) by ~4x. This is the single biggest GPU win.
+          1280 * 720,
+        );
+        setLightSpeed();
+      } catch (err) {
+        console.error("[washi] light mount failed", err);
+      }
+
+      bindControls();
+
+      // Day and night photos embedded in the washi. Both loaded up front so the
+      // theme toggle can swap the texture instantly.
+      const loadImg = async (src: string | undefined) => {
+        if (!src) return undefined;
+        try {
+          const im = new Image();
+          im.src = src;
+          return await readyImage(im);
+        } catch (err) {
+          console.error("[washi] paper image failed", err);
+          return undefined;
+        }
+      };
+      const dayImage = await loadImg(ds.paperimage);
+      const darkImage = await loadImg(ds.paperimagedark);
+      const isDark = () => document.documentElement.dataset.theme === "dark";
+      const pickImage = () => (isDark() && darkImage ? darkImage : dayImage);
+      const imageScale = () => {
+        if (!pickImage()) return 0.5;
+        return isDark() && darkImage ? 0.68 * (2 / 3) : 0.68;
+      };
+      const embeddedImage = pickImage();
+
+      try {
+        const noise = await readyImage(getShaderNoiseTexture());
+        const imageAspect = embeddedImage
+          ? embeddedImage.naturalWidth / embeddedImage.naturalHeight
+          : 1.6;
+        paperMount = new ShaderMount(
+          paperEl,
+          warpedPaperShader,
+          {
+            u_mouse: [0.5, 0.5],
+            u_press: 0,
+            // paperTexture is an image shader: the Paper Shaders playground runs
+            // it in object sizing (fit: contain) over its sample image, so the
+            // washi spans the frame. Pattern sizing (fit: none) instead tiles it
+            // into a fine grain, which is why identical slider values looked
+            // nothing like the playground. Match the playground with object
+            // sizing + the box aspect (16/10) so the texture isn't distorted.
+            u_fit: ShaderFitOptions.contain,
+            u_scale: imageScale(),
+            u_rotation: 0,
+            u_originX: 0.5,
+            u_originY: 0.5,
+            u_offsetX: 0,
+            u_offsetY: 0,
+            u_worldWidth: 0,
+            u_worldHeight: 0,
+            u_imageAspectRatio: imageAspect,
+            ...(embeddedImage ? { u_image: embeddedImage } : {}),
+            u_noiseTexture: noise,
+            u_colorFront: getShaderColorFromString("#d8d6cb"),
+            u_colorBack: getShaderColorFromString("#fff8eba3"),
+            u_contrast: 0.43,
+            u_roughness: 0.5,
+            u_fiber: 0.5,
+            u_fiberSize: 0.46,
+            u_crumples: 0.82,
+            u_crumpleSize: 0.09,
+            u_folds: 0,
+            u_foldCount: 1,
+            u_fade: 0.41,
+            u_drops: 0.15,
+            u_seed: 370,
+          },
+          undefined,
+          0,
+          0,
+          2,
+          // Mostly static, but the pointer bend now re-renders the grain while the
+          // cursor moves, so cap at ~1080p: still crisp for the fiber/crumple
+          // detail, but cheap enough to redraw per frame during a bend.
+          1920 * 1080,
+        );
+
+        // Swap the embedded photo when the theme flips (day â night).
+        if (darkImage && dayImage) {
+          const applyPaperImage = () => {
+            const img = pickImage();
+            if (!img || !paperMount) return;
+            paperMount.setUniforms({
+              u_image: img,
+              u_imageAspectRatio: img.naturalWidth / img.naturalHeight,
+              u_scale: imageScale(),
+            });
+          };
+          new MutationObserver(applyPaperImage).observe(
+            document.documentElement,
+            { attributes: true, attributeFilter: ["data-theme"] },
+          );
+        }
+      } catch (err) {
+        console.error("[washi] paper mount failed", err);
+      }
+
+      // Pointer bend works in both modes (full-viewport light shader or the
+      // inline video centerpiece), driving whichever mounts exist.
+      bindPointerDimple();
+    };
+
+    init();
+  }
+</script>
+
+<style>
+  #washi {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    isolation: isolate;
+    /* Transparent: the torn deckle edge is now cut inside both shaders (so it can
+       bend with the pointer), and the dark page shows through where it cuts. */
+    background: transparent;
+
+    /* Roll in on load like an unfurling hanging scroll: the sheet starts edge-on
+       at the top and swings down to flat. transform + opacity only (GPU), with an
+       ease-out-quint settle â no bounce, which would read wrong for paper. */
+    transform-origin: top center;
+    will-change: transform, opacity;
+    animation: washi-unroll 950ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+
+  @keyframes washi-unroll {
+    0% {
+      opacity: 0;
+      transform: perspective(1400px) rotateX(-88deg);
+    }
+    35% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 1;
+      transform: perspective(1400px) rotateX(0deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #washi {
+      animation: none;
+    }
+  }
+
+  /* Inline mode: a self-contained box that fills whatever sized element wraps
+     it, instead of the fixed full-viewport background. */
+  #washi.washi--inline {
+    position: relative;
+    inset: auto;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    overflow: visible;
+    pointer-events: auto;
+    cursor: default;
+  }
+
+  .washi__layer {
+    position: absolute;
+    inset: 0;
+  }
+
+  #washi-light {
+    z-index: 0;
+  }
+
+  /* Moving tree-shadow backdrop. Sits at the base; the washi paper overlays it
+     with multiply so the grain rides on the shadows. brightness/contrast lift
+     the grey wall toward the page tone while keeping the leaf shadows dark. */
+  .washi__video {
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(1.18) contrast(1.06);
+  }
+
+  /* Warm sunlight pouring onto the washi â brightest where the light enters
+     (top), warming and lifting the whole sheet so it reads as sun-struck paper.
+     `screen` brightens toward the warm tone; the soft-light pass deepens the
+     golden cast without blowing out the shadows. */
+  .washi__sun {
+    z-index: 3;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        135% 105% at 50% -12%,
+        rgba(255, 211, 150, 0.74) 0%,
+        rgba(255, 186, 112, 0.44) 34%,
+        rgba(255, 166, 92, 0.16) 60%,
+        transparent 80%
+      ),
+      linear-gradient(rgba(255, 180, 110, 0.26), rgba(255, 162, 92, 0.08));
+    mix-blend-mode: screen;
+  }
+
+  /* Midnight wash that sits above the paper grain (and the video showing through
+     it) but below the cool glow, so the sheet reads midnight blue while still
+     catching the light. Transparent by day; only paints at night. */
+  .washi__tint {
+    z-index: 2;
+    pointer-events: none;
+    background: transparent;
+  }
+
+  /* ---- Night: gated on the resolved theme reflected onto <html> ---- */
+  /* The video keeps its natural brightness at night â instead of dimming it
+     uniformly, the cool moonlight GLSL light (below) multiplies over it, so the
+     scene darkens directionally with a moonlit pool where the light falls. */
+  :global(html[data-theme="dark"]) .washi__tint {
+    background: transparent;
+  }
+  :global(html[data-theme="dark"]) .washi__sun {
+    background: none;
+  }
+
+  /* Video mode: the GLSL light is a cool moonlight glow multiplied over the
+     video â off by day (the warm sun overlay handles day), on at night. It sits
+     just above the video (DOM order) and below the paper grain. */
+  #washi[data-leafvideo] #washi-light {
+    z-index: 0;
+    opacity: 0;
+    mix-blend-mode: multiply;
+  }
+  :global(html[data-theme="dark"]) #washi[data-leafvideo] #washi-light {
+    opacity: 1;
+  }
+
+  .washi__layer :global(canvas) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  .washi__paper {
+    z-index: 1;
+  }
+
+  /* Over the video backdrop the paper grain multiplies so the shadows show
+     through; over the warm GLSL light it composites normally. */
+  #washi[data-leafvideo] .washi__paper {
+    mix-blend-mode: multiply;
+  }
+
+  #washi-controls {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.85rem 1rem;
+    width: 15rem;
+    border-radius: 0.6rem;
+    background: rgba(26, 25, 22, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #e8e2d4;
+  }
+
+  .sc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .sc-section {
+    margin: 0.35rem 0 0;
+    padding-top: 0.55rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    color: rgba(232, 226, 212, 0.65);
+  }
+
+  .sc-row label {
+    flex: none;
+    width: 4.5rem;
+  }
+
+  .sc-row input[type="range"] {
+    flex: 1;
+    accent-color: #d98a5b;
+    height: 2px;
+  }
+
+  .sc-val {
+    flex: none;
+    width: 2.4rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #f0c89a;
+  }
+
+  .sc-copy {
+    margin-top: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(217, 138, 91, 0.18);
+    color: #f0e5d4;
+    font: inherit;
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+
+  .sc-copy:hover {
+    background: rgba(217, 138, 91, 0.3);
+  }
+</style>
+
+<style is:global>
+  /* Fireflies â created in JS, so they live outside Astro's scoped styles.
+     Only paint at night, screen-blended so they read as glowing points. */
+  .washi__fireflies {
+    z-index: 4;
+    pointer-events: none;
+    opacity: 0;
+    mix-blend-mode: screen;
+    transition: opacity 600ms ease;
+  }
+  html[data-theme="dark"] .washi__fireflies {
+    opacity: 1;
+  }
+  .washi__firefly {
+    position: absolute;
+    border-radius: 50%;
+    /* Warm orange glow, soft all the way out so the disc has no hard edge. */
+    background: radial-gradient(
+      circle,
+      rgba(255, 210, 150, 1) 0%,
+      rgba(255, 155, 70, 0.68) 36%,
+      rgba(255, 120, 45, 0.26) 64%,
+      transparent 82%
+    );
+    box-shadow:
+      0 0 20px 7px rgba(255, 140, 55, 0.58),
+      0 0 42px 15px rgba(255, 100, 35, 0.3);
+    filter: blur(var(--blur, 1.3px)) brightness(var(--bright, 1));
+    opacity: 0;
+    /* Twinkle (opacity) and meander (the independent `translate` property) run
+       on separate properties so they never fight over `transform`. */
+    animation:
+      washi-firefly var(--dur, 3s) ease-in-out var(--delay, 0s) infinite,
+      washi-drift var(--drift-dur, 14s) ease-in-out var(--drift-delay, 0s) infinite;
+  }
+  @keyframes washi-firefly {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    50% {
+      opacity: var(--peak, 0.9);
+    }
+  }
+  @keyframes washi-drift {
+    0% {
+      translate: 0 0;
+    }
+    25% {
+      translate: var(--dx1, 0) var(--dy1, 0);
+    }
+    50% {
+      translate: var(--dx2, 0) var(--dy2, 0);
+    }
+    75% {
+      translate: var(--dx3, 0) var(--dy3, 0);
+    }
+    100% {
+      translate: 0 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .washi__firefly {
+      animation: none;
+      opacity: calc(var(--peak, 0.7) * 0.55);
+    }
+  }
+
+</style>

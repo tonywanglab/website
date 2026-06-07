@@ -1,0 +1,220 @@
+/* =========================================================================
+   Design tokens
+   ========================================================================= */
+:root {
+  /* Easing — entrances use ease-out, hovers use plain ease. */
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+
+  /* Color (light) — warm paper & ink */
+  --bg: #f3f3f2; /* paper */
+  --fg: #1a1a18; /* warm near-black ink */
+  --muted: #6f6b63; /* warm grey */
+  --faint: #e9e6dd; /* hairline / dividers */
+  --accent: #b5532a; /* clay */
+
+  /* Type & layout */
+  --measure: 40rem; /* ~640px content column */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+    Georgia, "Times New Roman", serif;
+
+  /* Shared meta/eyebrow label: quiet sans, uppercase, tracked */
+  --label-size: 0.78rem;
+}
+
+/* Dark — midnight blue. Driven by an explicit [data-theme] choice (the toggle),
+   and the same palette is applied by the OS preference below until the visitor
+   picks a theme of their own. Keep both blocks in sync. */
+:root[data-theme="dark"] {
+  --bg: #21222e; /* midnight */
+  --fg: #e2e6f0;
+  --muted: #888fa3;
+  --faint: #1c2740;
+  --accent: #d98a5b; /* keep warm clay — ties to the lantern glow */
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #21222e;
+    --fg: #e2e6f0;
+    --muted: #888fa3;
+    --faint: #1c2740;
+    --accent: #d98a5b;
+    color-scheme: dark;
+  }
+}
+
+/* =========================================================================
+   Base
+   ========================================================================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+
+  /* Flat paper background. */
+  background-color: var(--bg);
+
+  /* Ease the light⇄dark swap (disabled under reduced motion below). */
+  transition:
+    background-color 220ms var(--ease-out-cubic),
+    color 220ms var(--ease-out-cubic);
+}
+
+/* Quiet sans label — section eyebrows, dates, footer, meta */
+.meta {
+  font-family: var(--font-sans);
+  font-size: var(--label-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wrap {
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding: clamp(2.5rem, 6vw, 5rem) 1.5rem 6rem;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+/* =========================================================================
+   Reveal — staggered fade + rise on load (ease-out)
+   transform + opacity only -> GPU friendly.
+   ========================================================================= */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal {
+  opacity: 0;
+  animation: rise 420ms var(--ease-out-cubic) both;
+  will-change: transform, opacity;
+}
+
+/* Stagger via a custom property set inline: style="--i: 2" */
+.reveal {
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+
+/* =========================================================================
+   Rows — Work / Writing list items
+   ========================================================================= */
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--faint);
+}
+
+.row__link {
+  text-decoration: none;
+  transition: opacity 150ms ease;
+}
+
+.row__link:active {
+  transform: scale(0.94);
+  transition:
+    opacity 150ms ease,
+    transform 80ms ease;
+}
+
+.row__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  flex: none;
+  align-self: center;
+  text-align: right;
+}
+
+.row__meta {
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: var(--label-size);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.row__affil {
+  font-family: var(--font-serif);
+  font-size: 0.72rem;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  margin: 0;
+  max-width: 11rem;
+}
+
+.row__desc {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 0.1rem 0 0;
+}
+
+/* Hover effects only on real pointers (no false positives on touch taps) */
+@media (hover: hover) and (pointer: fine) {
+  .row__link:hover {
+    opacity: 0.6;
+  }
+}
+
+/* =========================================================================
+   Reduced motion — disable all motion, snap to final state.
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .row__link {
+    transition: none;
+  }
+  .row__link:active {
+    transform: none;
+  }
+  body {
+    transition: none;
+  }
+}

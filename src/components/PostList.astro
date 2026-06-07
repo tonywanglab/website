@@ -1,0 +1,46 @@
+---
+import type { CollectionEntry } from "astro:content";
+
+interface Props {
+  posts: CollectionEntry<"blog">[];
+  /** When "home", post links carry ?from=home so back returns to the homepage. */
+  from?: "home";
+}
+
+const { posts, from } = Astro.props;
+
+const fmt = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  year: "numeric",
+});
+---
+
+<ul class="list">
+  {
+    posts.map((post) => (
+      <li class="row">
+        <a
+          class="row__link"
+          href={
+            from === "home"
+              ? `/blog/${post.id}/?from=home`
+              : `/blog/${post.id}/`
+          }
+        >
+          {post.data.title}
+        </a>
+        <time class="row__meta" datetime={post.data.pubDate.toISOString()}>
+          {fmt.format(post.data.pubDate)}
+        </time>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+</style>

@@ -1,0 +1,490 @@
+---
+import { getCollection } from "astro:content";
+import Base from "../layouts/Base.astro";
+import WashiScreen from "../components/WashiScreen.astro";
+import WorkList from "../components/WorkList.astro";
+import PostList from "../components/PostList.astro";
+
+const posts = (await getCollection("blog", ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime(),
+);
+const recent = posts.slice(0, 4);
+---
+
+<Base title="Tony Wang">
+  <header class="intro">
+    <h1 class="name reveal" style="--i: 0">Tony Wang</h1>
+    <div class="bio">
+      <p class="bio__lead reveal" style="--i: 1">
+        Making AI systems for human flourishing.<br />
+        Preserving human autonomy, reason, and truth.<br />
+        Harmonizing form and function.
+      </p>
+      <hr class="bio__rule reveal" style="--i: 2" />
+      <p class="bio__edu reveal" style="--i: 3">
+        Software Engineer and Designer. Studied Computer Science at Yale.
+      </p>
+    </div>
+  </header>
+
+  <div class="centerpiece-wrap reveal" style="--i: 4">
+    <section class="centerpiece" aria-hidden="true">
+      <span class="centerpiece__fringe centerpiece__fringe--shadow"></span>
+      <div class="centerpiece__sheet">
+        <WashiScreen
+          inline
+          leafVideo="/tree-shadow.mp4"
+          paperImage="/library.png"
+          paperImageDark="/temple-night.png"
+          lightX={0.44}
+          lightY={0.05}
+          glow={0.18}
+          bloom={1}
+          flicker={0.22}
+          leafX={0.66}
+          leafY={0.5}
+          leafRotation={-22}
+          leafSize={0.85}
+          leafShadow={0.38}
+          leafShaft={1}
+          leafCoverage={0.5}
+          leafSway={0.2}
+        />
+      </div>
+      <span class="centerpiece__fringe centerpiece__fringe--lantern"></span>
+      <span class="centerpiece__fringe centerpiece__fringe--in"></span>
+    </section>
+    <p class="centerpiece__caption">
+      <strong
+        ><a class="centerpiece__caption-link" href="/blog/washi/">和紙 Curtain</a></strong
+      >, 2026.<br />
+      Japanese handmade paper.<br />
+      Code, on code. 1766 × 1094 px.<br />
+      Public collection.
+    </p>
+  </div>
+
+  <section class="reveal section" style="--i: 5">
+    <h2 class="heading">Work</h2>
+    <WorkList />
+  </section>
+
+  <section id="writing" class="reveal section" style="--i: 6">
+    <div class="heading-row">
+      <h2 class="heading">Writing</h2>
+      <a class="row__link more" href="/blog/">All posts →</a>
+    </div>
+    <PostList posts={recent} from="home" />
+  </section>
+
+  <footer class="reveal foot" style="--i: 7">
+    <a class="row__link" href="https://github.com/tonywanglab">GitHub</a>
+    <span aria-hidden="true">·</span>
+    <a class="row__link" href="https://www.linkedin.com/in/tony-y-wang">LinkedIn</a>
+    <span aria-hidden="true">·</span>
+    <a class="row__link" href="https://x.com/">X</a>
+    <span aria-hidden="true">·</span>
+    <a class="row__link" href="mailto:itstonywang@gmail.com">Email</a>
+    <span class="clock" aria-label="NYC and Tokyo time">
+      <span class="clock__ticker" id="clock-tick" aria-hidden="true"></span>
+    </span>
+  </footer>
+</Base>
+
+<script is:inline>
+  (function () {
+    const root = document.getElementById("clock-tick");
+    if (!root) return;
+
+    const zones = [
+      { label: "NYC", tz: "America/New_York" },
+      { label: "TYO", tz: "Asia/Tokyo" },
+    ];
+    const groups = [2, 2, 2, 2];
+    const drums = [];
+
+    function zoneDigits(date, tz) {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }).formatToParts(date);
+      const get = (type) =>
+        parts.find((part) => part.type === type)?.value ?? "00";
+      const msTens = String(Math.floor(date.getMilliseconds() / 10) % 10);
+      return get("hour") + get("minute") + get("second") + msTens;
+    }
+
+    function randomDigit(exclude) {
+      let next;
+      do {
+        next = String(Math.floor(Math.random() * 10));
+      } while (next === exclude);
+      return next;
+    }
+
+    function addDigits(parent) {
+      groups.forEach((len, gi) => {
+        if (gi > 0) {
+          const colon = document.createElement("span");
+          colon.className = "clock__colon";
+          colon.textContent = ":";
+          parent.appendChild(colon);
+        }
+        for (let i = 0; i < len; i++) {
+          const slot = document.createElement("span");
+          slot.className = "clock__slot";
+          const drum = document.createElement("span");
+          drum.className = "clock__digit";
+          drum.textContent = "0";
+          slot.appendChild(drum);
+          parent.appendChild(slot);
+          drums.push({
+            drum,
+            char: "0",
+            random: gi === groups.length - 1 && i === len - 1,
+          });
+        }
+      });
+    }
+
+    zones.forEach((zone, zi) => {
+      if (zi > 0) {
+        const divider = document.createElement("span");
+        divider.className = "clock__divider";
+        divider.textContent = "|";
+        root.appendChild(divider);
+      }
+      const wrap = document.createElement("span");
+      wrap.className = "clock__zone";
+      wrap.style.display = "inline-flex";
+      wrap.style.alignItems = "center";
+      const label = document.createElement("span");
+      label.className = "clock__label";
+      label.textContent = zone.label;
+      const gap = document.createElement("span");
+      gap.className = "clock__gap";
+      gap.setAttribute("aria-hidden", "true");
+      gap.style.display = "inline-block";
+      gap.style.width = "0.55em";
+      gap.style.flexShrink = "0";
+      const digits = document.createElement("span");
+      digits.className = "clock__digits";
+      addDigits(digits);
+      wrap.appendChild(label);
+      wrap.appendChild(gap);
+      wrap.appendChild(digits);
+      root.appendChild(wrap);
+    });
+
+    const zoneOffsets = [
+      0,
+      groups.reduce((sum, n) => sum + n, 0),
+    ];
+
+    function setDigit(entry, next) {
+      if (entry.char === next) return;
+      entry.char = next;
+      entry.drum.textContent = next;
+    }
+
+    function tick() {
+      const now = new Date();
+      zones.forEach((zone, zi) => {
+        const str = zoneDigits(now, zone.tz);
+        const base = zoneOffsets[zi];
+        for (let i = 0; i < str.length; i++) {
+          setDigit(drums[base + i], str[i]);
+        }
+        const randomDrum = drums[base + str.length];
+        setDigit(randomDrum, randomDigit(randomDrum.char));
+      });
+    }
+
+    tick();
+    setInterval(tick, 1);
+  })();
+</script>
+
+<style>
+  .name {
+    font-size: clamp(1.6rem, 4vw, 2.1rem);
+    margin: 0 0 0.5rem;
+  }
+  .bio {
+    margin: 0;
+    max-width: 32rem;
+  }
+  .bio__lead {
+    color: var(--fg);
+    font-size: 1.15rem;
+    line-height: 1.55;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .bio__edu {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  .bio__rule {
+    border: none;
+    border-top: 1px solid var(--faint);
+    width: 2rem;
+    margin: 1rem 0;
+  }
+  .section {
+    margin-top: 3rem;
+  }
+  /* Backlit-washi shader as a handmade-paper centerpiece. The shader fills the
+     full outer sheet; stepped ply rings overlay the deckle edge on top. */
+  .centerpiece-wrap {
+    --deckle: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 625' preserveAspectRatio='none'><filter id='d' x='-10%' y='-12%' width='120%' height='124%'><feTurbulence type='fractalNoise' baseFrequency='0.02' numOctaves='4' seed='370' result='n'/><feDisplacementMap in='SourceGraphic' in2='n' scale='16' xChannelSelector='R' yChannelSelector='G' result='disp'/><feGaussianBlur in='disp' stdDeviation='1.2'/></filter><rect x='18' y='18' width='964' height='589' rx='22' ry='22' fill='%23fff' filter='url(%23d)'/></svg>");
+    container-type: inline-size;
+    --gap: clamp(0.65rem, 2.5cqw, 1.15rem);
+    --outset: clamp(5px, 2.2cqw, 12px);
+    --shadow-spread: clamp(2px, 0.75cqw, 4px);
+    --shadow-x: clamp(1.5px, 0.55cqw, 3px);
+    --shadow-y: clamp(2px, 0.75cqw, 4px);
+    --shadow-blur: clamp(8px, 3.2cqw, 18px);
+    --edge-rim: clamp(5px, 1.4cqw, 10px);
+    --edge-sm: clamp(10px, 2.8cqw, 20px);
+    --edge-md: clamp(14px, 4cqw, 22px);
+    --edge-lg: clamp(28px, 8cqw, 44px);
+    --edge-deep: clamp(24px, 6.5cqw, 36px);
+    --edge-xl: clamp(46px, 13cqw, 72px);
+    --sheet-inset: calc(var(--gap) - var(--outset));
+    width: min(56rem, 92vw);
+    margin-left: calc(50% - min(56rem, 92vw) / 2);
+    margin-top: 3rem;
+  }
+  .centerpiece {
+    position: relative;
+    aspect-ratio: 16 / 10;
+  }
+  .centerpiece__caption {
+    margin: 0.55rem 0 0;
+    padding-left: var(--sheet-inset);
+    padding-right: calc(var(--sheet-inset) + 1rem);
+    text-align: right;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .centerpiece__caption-link {
+    color: inherit;
+    text-decoration: none;
+    transition: color 160ms var(--ease-out-cubic);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .centerpiece__caption-link:hover {
+      color: var(--fg);
+    }
+  }
+  .centerpiece__sheet,
+  .centerpiece__fringe {
+    position: absolute;
+  }
+  /* The paper layer carries its own torn deckle in the shader now (cut on the
+     pointer-bent uv, so the edge flexes), and that bend must not be clipped — so
+     the sheet group is NOT masked. The static video + sun backdrop keep a CSS
+     deckle silhouette instead, inset a touch (--edge-rim) so the bending paper
+     edge always overhangs them onto the page rather than onto the video. */
+  .centerpiece__fringe {
+    -webkit-mask: var(--deckle) center / 100% 100% no-repeat;
+    mask: var(--deckle) center / 100% 100% no-repeat;
+  }
+  .centerpiece__sheet :global(.washi__video),
+  .centerpiece__sheet :global(.washi__tint),
+  .centerpiece__sheet :global(.washi__sun),
+  .centerpiece__sheet :global(.washi__fireflies) {
+    -webkit-mask: var(--deckle) center /
+      calc(100% - 2 * var(--edge-rim)) calc(100% - 2 * var(--edge-rim)) no-repeat;
+    mask: var(--deckle) center /
+      calc(100% - 2 * var(--edge-rim)) calc(100% - 2 * var(--edge-rim)) no-repeat;
+  }
+  .centerpiece__sheet {
+    inset: var(--sheet-inset);
+    z-index: 2;
+    overflow: visible;
+  }
+  .centerpiece__sheet :global(#washi.washi--inline) {
+    -webkit-mask-image: none;
+    mask-image: none;
+    background: transparent;
+  }
+  .centerpiece__fringe {
+    pointer-events: none;
+  }
+  /* Shadow cast down-right — anchored to the sheet's top-left so the light
+     reads as coming from the upper-left corner. */
+  .centerpiece__fringe--shadow {
+    top: var(--sheet-inset);
+    left: var(--sheet-inset);
+    right: calc(var(--sheet-inset) - var(--shadow-spread));
+    bottom: calc(var(--sheet-inset) - var(--shadow-spread));
+    z-index: 0;
+    background: rgba(70, 58, 46, 0.13);
+    filter: blur(var(--shadow-blur));
+    transform: translate(var(--shadow-x), var(--shadow-y));
+    /* Ambient halo only — no deckle mask, so it doesn't fight the bent edge. */
+    -webkit-mask: none;
+    mask: none;
+  }
+  /* The stepped ply rings are now drawn inside the paper shader (washiPly), on
+     the same bent uv as the torn edge, so the lamination flexes with the pointer
+     instead of sitting in a static CSS mask. */
+  /* Night only: warm lantern pools lighting the sheet's sides and lower corners
+     from the FRONT (z above the sheet), as if lamps burn inside the paper.
+     `screen` so they read as added lamplight; full deckle mask (inherited) hugs
+     the torn silhouette. Inert by day. */
+  .centerpiece__fringe--lantern {
+    inset: var(--sheet-inset);
+    z-index: 6;
+    opacity: 0;
+    mix-blend-mode: screen;
+    background:
+      radial-gradient(55% 80% at 0% 50%, rgba(255, 168, 92, 0.5), transparent 70%),
+      radial-gradient(55% 80% at 100% 50%, rgba(255, 168, 92, 0.5), transparent 70%),
+      radial-gradient(85% 55% at 50% 100%, rgba(255, 150, 80, 0.34), transparent 72%),
+      radial-gradient(85% 45% at 50% 0%, rgba(255, 176, 104, 0.28), transparent 70%);
+  }
+  /* Lantern pools stay off at night too — no warm orange washes on the edges. */
+  /* Cool the warm drop-shadow halo to a blue-black at night. */
+  :global(html[data-theme="dark"]) .centerpiece__fringe--shadow {
+    background: rgba(6, 10, 22, 0.5);
+  }
+  /* Face-edge rim now lives in the paper shader (washiFaceRim) on the bent uv
+     so it flexes with the pointer; this layer stays for stacking only. */
+  .centerpiece__fringe--in {
+    opacity: 0;
+    inset: var(--sheet-inset);
+    z-index: 6;
+    background:
+      linear-gradient(
+        to top,
+        rgba(28, 18, 10, 0.32) 0,
+        rgba(28, 18, 10, 0.16) var(--edge-md),
+        rgba(28, 18, 10, 0.05) var(--edge-lg),
+        transparent var(--edge-xl)
+      ),
+      linear-gradient(
+        to right,
+        rgba(28, 18, 10, 0.24) 0,
+        rgba(28, 18, 10, 0.1) var(--edge-sm),
+        transparent var(--edge-lg)
+      ),
+      linear-gradient(
+        to left,
+        rgba(28, 18, 10, 0.24) 0,
+        rgba(28, 18, 10, 0.1) var(--edge-sm),
+        transparent var(--edge-lg)
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(28, 18, 10, 0.16) 0,
+        rgba(28, 18, 10, 0.05) var(--edge-md),
+        transparent var(--edge-deep)
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(255, 252, 245, 0.35) 0,
+        transparent var(--edge-rim)
+      );
+  }
+  .heading {
+    font-family: var(--font-sans);
+    font-size: var(--label-size);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0 0 0.5rem;
+  }
+  .heading-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .more {
+    font-family: var(--font-sans);
+    font-size: var(--label-size);
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .foot {
+    margin-top: 3.5rem;
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    color: var(--muted);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+  }
+  .foot .row__link {
+    text-decoration: none;
+  }
+
+  /* Dual-zone lock ticker shell — children are built in JS (see global styles). */
+  .clock {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.03em;
+    font-size: 0.72rem;
+    line-height: 1;
+  }
+</style>
+
+<style is:global>
+  /* Ticker DOM is injected at runtime — must be global to receive styles. */
+  .clock__ticker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+  .clock__zone {
+    display: inline-flex;
+    align-items: center;
+  }
+  .clock__label {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--muted) 82%, var(--fg));
+    flex-shrink: 0;
+  }
+  .clock__gap {
+    display: inline-block;
+    width: 0.55em;
+    flex-shrink: 0;
+  }
+  .clock__digits {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .clock__colon,
+  .clock__divider {
+    color: color-mix(in srgb, var(--muted) 70%, transparent);
+    padding: 0 0.08rem;
+  }
+  .clock__divider {
+    padding: 0 0.15rem;
+  }
+  .clock__slot {
+    display: inline-block;
+    width: 1ch;
+    text-align: center;
+  }
+  .clock__digit {
+    display: block;
+    line-height: 1.1em;
+  }
+</style>
