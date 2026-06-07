@@ -583,8 +583,10 @@ void main() {
         const t = (size - 7) / 9;
         // Larger fireflies sit farther back â softer and brighter to read through the blur.
         const blur = 1 + t * 3.2;
-        const bright = 1 + t * 0.55;
-        const peak = 0.55 + t * 0.35 + Math.random() * 0.15;
+        const bright = 1.25 + t * 0.75;
+        const peak = 0.72 + t * 0.28 + Math.random() * 0.12;
+        if (t >= 0.5) d.classList.add("washi__firefly--large");
+        d.style.setProperty("--sat", (1 + t * 0.55).toFixed(2));
         d.style.left = (4 + Math.random() * 92).toFixed(2) + "%";
         d.style.top = (3 + Math.random() * 44).toFixed(2) + "%";
         d.style.width = size.toFixed(2) + "px";
@@ -1354,21 +1356,36 @@ void main() {
     /* Warm orange glow, soft all the way out so the disc has no hard edge. */
     background: radial-gradient(
       circle,
-      rgba(255, 210, 150, 1) 0%,
-      rgba(255, 155, 70, 0.68) 36%,
-      rgba(255, 120, 45, 0.26) 64%,
-      transparent 82%
+      rgba(255, 175, 70, 1) 0%,
+      rgba(255, 130, 35, 0.82) 34%,
+      rgba(255, 95, 20, 0.42) 62%,
+      transparent 84%
     );
     box-shadow:
-      0 0 20px 7px rgba(255, 140, 55, 0.58),
-      0 0 42px 15px rgba(255, 100, 35, 0.3);
-    filter: blur(var(--blur, 1.3px)) brightness(var(--bright, 1));
+      0 0 22px 8px rgba(255, 115, 30, 0.72),
+      0 0 48px 18px rgba(255, 80, 15, 0.45);
+    filter: blur(var(--blur, 1.3px)) brightness(var(--bright, 1))
+      saturate(var(--sat, 1));
     opacity: 0;
     /* Twinkle (opacity) and meander (the independent `translate` property) run
        on separate properties so they never fight over `transform`. */
     animation:
       washi-firefly var(--dur, 3s) ease-in-out var(--delay, 0s) infinite,
       washi-drift var(--drift-dur, 14s) ease-in-out var(--drift-delay, 0s) infinite;
+  }
+  .washi__firefly--large {
+    background: radial-gradient(
+      circle,
+      rgba(255, 145, 40, 1) 0%,
+      rgba(255, 105, 18, 0.9) 32%,
+      rgba(255, 70, 8, 0.52) 58%,
+      transparent 84%
+    );
+    box-shadow:
+      0 0 26px 10px rgba(255, 95, 20, 0.82),
+      0 0 56px 22px rgba(255, 55, 5, 0.52);
+    filter: blur(var(--blur, 1.3px)) brightness(var(--bright, 1))
+      saturate(calc(var(--sat, 1) * 1.15));
   }
   @keyframes washi-firefly {
     0%,
