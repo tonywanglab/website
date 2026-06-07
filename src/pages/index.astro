@@ -100,7 +100,17 @@ const recent = posts.slice(0, 4);
       { label: "NYC", tz: "America/New_York" },
       { label: "TYO", tz: "Asia/Tokyo" },
     ];
+    const mobile = window.matchMedia("(max-width: 640px)");
+    const activeZones = mobile.matches ? [zones[0]] : zones;
+    const clock = root.closest(".clock");
+    if (clock) {
+      clock.setAttribute(
+        "aria-label",
+        activeZones.length === 1 ? "NYC time" : "NYC and Tokyo time",
+      );
+    }
     const groups = [2, 2, 2, 2];
+    const digitsPerZone = groups.reduce((sum, n) => sum + n, 0);
     const drums = [];
 
     function zoneDigits(date, tz) {
@@ -150,7 +160,7 @@ const recent = posts.slice(0, 4);
       });
     }
 
-    zones.forEach((zone, zi) => {
+    activeZones.forEach((zone, zi) => {
       if (zi > 0) {
         const divider = document.createElement("span");
         divider.className = "clock__divider";
@@ -179,10 +189,7 @@ const recent = posts.slice(0, 4);
       root.appendChild(wrap);
     });
 
-    const zoneOffsets = [
-      0,
-      groups.reduce((sum, n) => sum + n, 0),
-    ];
+    const zoneOffsets = activeZones.map((_, zi) => zi * digitsPerZone);
 
     function setDigit(entry, next) {
       if (entry.char === next) return;
@@ -192,7 +199,7 @@ const recent = posts.slice(0, 4);
 
     function tick() {
       const now = new Date();
-      zones.forEach((zone, zi) => {
+      activeZones.forEach((zone, zi) => {
         const str = zoneDigits(now, zone.tz);
         const base = zoneOffsets[zi];
         for (let i = 0; i < str.length; i++) {

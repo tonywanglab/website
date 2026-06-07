@@ -696,14 +696,17 @@ void main() {
     };
 
     // Pointer dimple: ease u_mouse toward the cursor and u_press toward 1 while
-    // the pointer is on the page, decaying back to 0 when it leaves. The easing
-    // rAF only spins while values are still settling, then stops â no idle cost.
+    // the pointer is on the sheet. Touch drags use pointer capture so the bend
+    // tracks a finger without scrolling the page.
     const bindPointerDimple = () => {
       if (reduceMotion) return;
       let mx = 0.5, my = 0.5;
       let tmx = 0.5, tmy = 0.5;
       let press = 0, pressTarget = 0;
       let raf: number | null = null;
+      let touchId: number | null = null;
+      const isInlineSheet = root.classList.contains("washi--inline");
+      const moveTarget: EventTarget = isInlineSheet ? root : window;
 
       const tick = () => {
         mx += (tmx - mx) * 0.18;
@@ -726,29 +729,86 @@ void main() {
         if (raf === null) raf = requestAnimationFrame(tick);
       };
 
-      // Map the cursor into the sheet's own box (so it works whether washi is the
-      // full-viewport background or an inline centerpiece) and only press while
-      // the pointer is actually over the sheet.
-      window.addEventListener(
-        "pointermove",
-        (e) => {
-          const r = root.getBoundingClientRect();
-          if (r.width < 1 || r.height < 1) return;
-          const x = (e.clientX - r.left) / r.width;
-          const y = (e.clientY - r.top) / r.height;
-          const inside = x >= 0 && x <= 1 && y >= 0 && y <= 1;
-          tmx = Math.min(Math.max(x, 0), 1);
-          tmy = 1 - Math.min(Math.max(y, 0), 1);
-          pressTarget = inside ? 1 : 0;
-          kick();
-        },
-        { passive: true },
-      );
+      const mapPoint = (clientX: number, clientY: number) => {
+        const r = root.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) return null;
+        const x = (clientX - r.left) / r.width;
+        const y = (clientY - r.top) / r.height;
+        return {
+          tmx: Math.min(Math.max(x, 0), 1),
+          tmy: 1 - Math.min(Math.max(y, 0), 1),
+          inside: x >= 0 && x <= 1 && y >= 0 && y <= 1,
+        };
+      };
+
+      const applyPoint = (
+        p: { tmx: number; tmy: number; inside: boolean },
+        pressed: boolean,
+      ) => {
+        tmx = p.tmx;
+        tmy = p.tmy;
+        pressTarget = pressed ? 1 : 0;
+        kick();
+      };
+
+      const onPointerMove = (e: PointerEvent) => {
+        if (touchId !== null && e.pointerId !== touchId) return;
+        const p = mapPoint(e.clientX, e.clientY);
+        if (!p) return;
+        const pressed =
+          touchId !== null || (e.pointerType === "mouse" && p.inside);
+        applyPoint(p, pressed);
+      };
+
       const release = () => {
+        touchId = null;
         pressTarget = 0;
         kick();
       };
-      document.addEventListener("pointerleave", release);
+
+      moveTarget.addEventListener("pointermove", onPointerMove, { passive: true });
+
+      if (isInlineSheet) {
+        root.addEventListener(
+          "pointerdown",
+          (e) => {
+            if (e.pointerType !== "touch") return;
+            if (touchId !== null) return;
+            touchId = e.pointerId;
+            root.setPointerCapture(e.pointerId);
+            const p = mapPoint(e.clientX, e.clientY);
+            if (p) applyPoint(p, true);
+          },
+          { passive: true },
+        );
+        root.addEventListener(
+          "pointerup",
+          (e) => {
+            if (e.pointerId !== touchId) return;
+            if (root.hasPointerCapture(e.pointerId)) {
+              root.releasePointerCapture(e.pointerId);
+            }
+            release();
+          },
+          { passive: true },
+        );
+        root.addEventListener(
+          "pointercancel",
+          (e) => {
+            if (e.pointerId !== touchId) return;
+            release();
+          },
+          { passive: true },
+        );
+        root.addEventListener("pointerleave", () => {
+          if (touchId === null) release();
+        });
+      } else {
+        document.addEventListener("pointerleave", () => {
+          if (touchId === null) release();
+        });
+      }
+
       window.addEventListener("blur", release);
     };
 
@@ -1090,6 +1150,9 @@ void main() {
     border-radius: inherit;
     overflow: visible;
     pointer-events: auto;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
     cursor: default;
   }
 
