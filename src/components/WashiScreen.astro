@@ -697,7 +697,8 @@ void main() {
 
     // Pointer dimple: ease u_mouse toward the cursor and u_press toward 1 while
     // the pointer is on the sheet. Touch drags use pointer capture so the bend
-    // tracks a finger without scrolling the page.
+    // tracks a finger without scrolling the page. Bend stays off until the
+    // unroll animation finishes so shader updates don't fight the CSS transform.
     const bindPointerDimple = () => {
       if (reduceMotion) return;
       let mx = 0.5, my = 0.5;
@@ -705,8 +706,14 @@ void main() {
       let press = 0, pressTarget = 0;
       let raf: number | null = null;
       let touchId: number | null = null;
+      let bendReady = false;
       const isInlineSheet = root.classList.contains("washi--inline");
-      const moveTarget: EventTarget = isInlineSheet ? root : window;
+      const settleBend = () => {
+        bendReady = true;
+        root.style.willChange = "auto";
+      };
+      root.addEventListener("animationend", settleBend, { once: true });
+      window.setTimeout(settleBend, 1000);
 
       const tick = () => {
         mx += (tmx - mx) * 0.18;
@@ -752,6 +759,7 @@ void main() {
       };
 
       const onPointerMove = (e: PointerEvent) => {
+        if (!bendReady) return;
         if (touchId !== null && e.pointerId !== touchId) return;
         const p = mapPoint(e.clientX, e.clientY);
         if (!p) return;
@@ -766,13 +774,15 @@ void main() {
         kick();
       };
 
-      moveTarget.addEventListener("pointermove", onPointerMove, { passive: true });
+      // Mouse hover uses window (original path) so the unroll isn't perturbed by
+      // pointerleave on a transforming element.
+      window.addEventListener("pointermove", onPointerMove, { passive: true });
 
       if (isInlineSheet) {
         root.addEventListener(
           "pointerdown",
           (e) => {
-            if (e.pointerType !== "touch") return;
+            if (!bendReady || e.pointerType !== "touch") return;
             if (touchId !== null) return;
             touchId = e.pointerId;
             root.setPointerCapture(e.pointerId);
@@ -800,15 +810,11 @@ void main() {
           },
           { passive: true },
         );
-        root.addEventListener("pointerleave", () => {
-          if (touchId === null) release();
-        });
-      } else {
-        document.addEventListener("pointerleave", () => {
-          if (touchId === null) release();
-        });
       }
 
+      document.addEventListener("pointerleave", () => {
+        if (touchId === null) release();
+      });
       window.addEventListener("blur", release);
     };
 
@@ -1115,7 +1121,6 @@ void main() {
        at the top and swings down to flat. transform + opacity only (GPU), with an
        ease-out-quint settle â no bounce, which would read wrong for paper. */
     transform-origin: top center;
-    will-change: transform, opacity;
     animation: washi-unroll 950ms cubic-bezier(0.23, 1, 0.32, 1) both;
   }
 
@@ -1154,6 +1159,7 @@ void main() {
     -webkit-user-select: none;
     user-select: none;
     cursor: default;
+    will-change: transform, opacity;
   }
 
   .washi__layer {
