@@ -717,27 +717,50 @@ void main() {
       lightMount.setSpeed(animating ? 1 : 0);
     };
 
-    // Pointer dimple: ease u_mouse toward the cursor and u_press toward 1 while
-    // the pointer is on the sheet. Touch drags use pointer capture so the bend
-    // tracks a finger without scrolling the page. Bend stays off until the
-    // unroll animation finishes so shader updates don't fight the CSS transform.
+    // Pointer dimple + idle curtain wave: ease u_mouse / u_press toward the
+    // cursor while hovering/touching; otherwise drift a soft virtual press on a
+    // slow Lissajous path so the sheet keeps a gentle flex. Touch drags use
+    // pointer capture so the bend tracks a finger without scrolling the page.
+    // Bend stays off until the unroll animation finishes so shader updates
+    // don't fight the CSS transform.
     const bindPointerDimple = () => {
       if (reduceMotion) return;
+      const IDLE_PRESS = 0.32;
+      const WAVE_PERIOD_MS = 10000;
       let mx = 0.5, my = 0.5;
       let tmx = 0.5, tmy = 0.5;
-      let press = 0, pressTarget = 0;
+      let press = 0, pressTarget = IDLE_PRESS;
       let raf: number | null = null;
       let touchId: number | null = null;
+      let hovering = false;
       let bendReady = false;
       const isInlineSheet = root.classList.contains("washi--inline");
       const settleBend = () => {
+        if (bendReady) return;
         bendReady = true;
         root.style.willChange = "auto";
+        kick();
       };
       root.addEventListener("animationend", settleBend, { once: true });
       window.setTimeout(settleBend, 1000);
 
+      const idleWaveTargets = (now: number) => {
+        const t = (now / WAVE_PERIOD_MS) * Math.PI * 2;
+        return {
+          tmx: 0.5 + 0.28 * Math.sin(t),
+          tmy: 0.55 + 0.18 * Math.sin(t * 0.7 + 1.1),
+          press: IDLE_PRESS,
+        };
+      };
+
       const tick = () => {
+        const interacting = hovering || touchId !== null;
+        if (bendReady && !interacting) {
+          const idle = idleWaveTargets(performance.now());
+          tmx = idle.tmx;
+          tmy = idle.tmy;
+          pressTarget = idle.press;
+        }
         mx += (tmx - mx) * 0.18;
         my += (tmy - my) * 0.18;
         press += (pressTarget - press) * 0.1;
@@ -747,6 +770,12 @@ void main() {
         };
         lightMount?.setUniforms(u);
         paperMount?.setUniforms(u);
+        // Keep rAF alive for the idle wave; only settle-stop when interacting
+        // would be wrong here — idle targets move every frame.
+        if (bendReady && !interacting) {
+          raf = requestAnimationFrame(tick);
+          return;
+        }
         const settled =
           Math.abs(tmx - mx) < 5e-4 &&
           Math.abs(tmy - my) < 5e-4 &&
@@ -774,9 +803,10 @@ void main() {
         p: { tmx: number; tmy: number; inside: boolean },
         pressed: boolean,
       ) => {
+        if (touchId === null) hovering = pressed;
         tmx = p.tmx;
         tmy = p.tmy;
-        pressTarget = pressed ? 1 : 0;
+        pressTarget = pressed ? 1 : IDLE_PRESS;
         kick();
       };
 
@@ -792,7 +822,8 @@ void main() {
 
       const release = () => {
         touchId = null;
-        pressTarget = 0;
+        hovering = false;
+        pressTarget = IDLE_PRESS;
         kick();
       };
 
@@ -807,6 +838,7 @@ void main() {
             if (!bendReady || e.pointerType !== "touch") return;
             if (touchId !== null) return;
             touchId = e.pointerId;
+            hovering = false;
             root.setPointerCapture(e.pointerId);
             const p = mapPoint(e.clientX, e.clientY);
             if (p) applyPoint(p, true);
