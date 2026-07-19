@@ -527,9 +527,11 @@ void main() {
   float bend = washiBend(scr);
   col *= 1.0 - bend * 0.05;
 
-  // Torn deckle edge â alpha-cut the sheet on the bent uv so the dark page shows
-  // around it and the edge curves with the flex.
-  fragColor = vec4(col, washiDeckle(uv));
+  // Torn deckle edge — alpha-cut the sheet on the bent uv so the dark page shows
+  // around it and the edge curves with the flex. Premultiply so transparent
+  // margins don't composite as a white rectangular canvas.
+  float a = washiDeckle(uv);
+  fragColor = vec4(col * a, a);
 }
 `;
 
@@ -702,12 +704,14 @@ void main() {
       // mask. The video/sun keep their own (static) deckle silhouette in CSS.
       ? injectPaperImageLift(injectPaperWarp(paperTextureFragmentShader)).replace(
           "fragColor = vec4(color, opacity);",
-          "vec2 bentUv = washiScr + washiD;\n  color *= 1.0 - washiBend(washiScr) * 0.06;\n  color = washiPly(bentUv, color);\n  color = washiFaceRim(bentUv, color);\n  fragColor = vec4(color, opacity * washiDeckle(bentUv));",
+          // Premultiply RGB by the deckle alpha so transparent margins outside
+          // the torn edge don't composite as a white rectangular canvas.
+          "vec2 bentUv = washiScr + washiD;\n  color *= 1.0 - washiBend(washiScr) * 0.06;\n  color = washiPly(bentUv, color);\n  color = washiFaceRim(bentUv, color);\n  float a = opacity * washiDeckle(bentUv);\n  fragColor = vec4(color * a, a);",
         )
       // Standalone: warp + the in-shader torn deckle edge (its only edge mask).
       : injectPaperImageLift(injectPaperWarp(paperTextureFragmentShader)).replace(
           "fragColor = vec4(color, opacity);",
-          "fragColor = vec4(color, opacity * washiDeckle(washiScr + washiD));",
+          "float a = opacity * washiDeckle(washiScr + washiD);\n  fragColor = vec4(color * a, a);",
         );
 
     const setLightSpeed = () => {
