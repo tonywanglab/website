@@ -75,15 +75,24 @@ const {
 >
   {
     leafVideo && (
-      <video
-        id="washi-video"
-        class="washi__layer washi__video"
-        src={leafVideo}
-        autoplay
-        loop
-        muted
-        playsinline
-      />
+      <>
+        <video
+          id="washi-video"
+          class="washi__layer washi__video"
+          src={leafVideo}
+          autoplay
+          muted
+          playsinline
+        />
+        {/* Second copy for seamless end→start crossfade (no hard loop cut). */}
+        <video
+          id="washi-video-b"
+          class="washi__layer washi__video washi__video--b"
+          src={leafVideo}
+          muted
+          playsinline
+        />
+      </>
     )
   }
   <div id="washi-light" class="washi__layer"></div>
@@ -183,8 +192,8 @@ const {
 
   // Shared GLSL injected into BOTH the custom light shader and the library paper
   // shader, so the pointer bend and the torn deckle edge are computed identically
-  // in each layer and stay perfectly registered. Requires u_resolution, u_mouse
-  // (cursor in uv space, y up) and u_press (0->1) to already be declared.
+  // in each layer and stay perfectly registered. Requires u_resolution and three
+  // press origins u_mouse0..2 / u_press0..2 (cursor in uv space, y up) declared.
   const washiShared = `
 float washiHash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -207,23 +216,24 @@ float washiFbm(vec2 p) {
   for (int i = 0; i < 4; i++) { v += a * washiVnoise(p); p *= 2.03; a *= 0.5; }
   return v;
 }
-// Bend strength under the cursor: a broad Gaussian so a whole SIDE of the sheet
-// flexes, not a pinpoint dimple. Aspect-corrected so the falloff stays round.
-float washiBend(vec2 uv) {
+// One origin's bend: broad Gaussian so a side of the sheet flexes.
+float washiBendAt(vec2 uv, vec2 mouse, float press) {
   float aspect = u_resolution.x / max(u_resolution.y, 1.0);
-  vec2 d = uv - u_mouse;
+  vec2 d = uv - mouse;
   d.x *= aspect;
   float dist = length(d);
-  // Broad, smooth dip matching the lens warp â no plateau, no crease.
-  return u_press * (1.0 - smoothstep(0.0, 0.62, dist));
+  return press * (1.0 - smoothstep(0.0, 0.62, dist));
 }
-// Smooth lens depression â no plateau, no crease. Just slightly firmer than
-// water: a broad, shallow bend, as if pressing slightly thicker paper that
-// resists and so deforms gently over a wide area. The displacement is the
-// gradient of a smooth bump, which is zero at the center (no dimple cusp).
-vec2 washiWarp(vec2 uv) {
+float washiBend(vec2 uv) {
+  return min(1.0,
+    washiBendAt(uv, u_mouse0, u_press0) +
+    washiBendAt(uv, u_mouse1, u_press1) +
+    washiBendAt(uv, u_mouse2, u_press2));
+}
+// One origin's lens warp — displacement is the gradient of a smooth bump.
+vec2 washiWarpAt(vec2 uv, vec2 mouse, float press) {
   float aspect = u_resolution.x / max(u_resolution.y, 1.0);
-  vec2 d = uv - u_mouse;
+  vec2 d = uv - mouse;
   d.x *= aspect;
   float dist = length(d);
   float R = 0.62;
@@ -231,7 +241,12 @@ vec2 washiWarp(vec2 uv) {
   float grad = 6.0 * t * (1.0 - t) / R;
   vec2 dir = dist > 1e-4 ? d / dist : vec2(0.0);
   dir.x /= aspect;
-  return -dir * grad * u_press * 0.005;
+  return -dir * grad * press * 0.005;
+}
+vec2 washiWarp(vec2 uv) {
+  return washiWarpAt(uv, u_mouse0, u_press0) +
+         washiWarpAt(uv, u_mouse1, u_press1) +
+         washiWarpAt(uv, u_mouse2, u_press2);
 }
 // Torn deckle edge as an alpha. Rounded-rect SDF, its extent nibbled by low-freq
 // noise for smooth-but-imperfect tears, then a soft fringe ramp for the wispy,
@@ -253,9 +268,9 @@ float washiDeckle(vec2 uv) {
   return 1.0 - smoothstep(-fringe, fringe, washiDeckleSDF(uv));
 }
 // Laminated deckle: the stepped paper plies of the homepage centerpiece, now in
-// the shader. A few thin bands just inside the torn edge darken the paper â
+// the shader. A few thin bands just inside the torn edge darken the paper —
 // outermost darkest (the old #c8c6c2 ply), lightening inward (#d4d2ce, #dedcd8)
-// â so the sheet reads as layered handmade paper. Driven by the SAME bent-uv
+// — so the sheet reads as layered handmade paper. Driven by the SAME bent-uv
 // SDF as the edge, so the plies flex with the pointer instead of detaching.
 vec3 washiPly(vec2 uv, vec3 color) {
   float sdf = washiDeckleSDF(uv);
@@ -280,6 +295,23 @@ vec3 washiFaceRim(vec2 uv, vec3 color) {
 }
 `;
 
+  const bendUniformsDecl = `uniform vec2 u_mouse0;
+uniform float u_press0;
+uniform vec2 u_mouse1;
+uniform float u_press1;
+uniform vec2 u_mouse2;
+uniform float u_press2;
+`;
+
+  const zeroBendUniforms = {
+    u_mouse0: [0.5, 0.5] as [number, number],
+    u_press0: 0,
+    u_mouse1: [0.5, 0.5] as [number, number],
+    u_press1: 0,
+    u_mouse2: [0.5, 0.5] as [number, number],
+    u_press2: 0,
+  };
+
   const lightFragmentShader = `#version 300 es
 precision mediump float;
 
@@ -301,11 +333,11 @@ uniform float u_leafCoverage;
 uniform float u_leafSway;
 uniform float u_leafBlur;
 
-// Pointer bend: u_mouse is the cursor in uv space (y up), u_press eases 0->1
-// while the pointer is over the sheet. Together they flex the whole near side of
-// the paper toward the cursor, like pressing into taut cloth.
-uniform vec2 u_mouse;
-uniform float u_press;
+// Pointer bend: three press origins (hover uses slot 0; idle ripples all three).
+// Each u_mouseN is in uv space (y up); u_pressN eases 0->1.
+// u_bendShade scales the local darkening (0 in video mode so only the deckle
+// tracks the paper — multiply over the video would otherwise read as a dip).
+${bendUniformsDecl}uniform float u_bendShade;
 ${washiShared}
 // The maple-leaf photograph, used as the shadow mask. ShaderMount uploads the
 // image unflipped, so texture coord t=0 is the top row. The companion
@@ -523,11 +555,12 @@ void main() {
   col *= 1.0 - foliage * (0.18 * breathe + 0.6 * flickerShade);
 
   // Shade the bend as a soft, light depression: a gentle, broad dip in the
-  // backlight under the cursor â no hard rim, no bright dimple.
+  // backlight under the cursor — no hard rim, no bright dimple.
+  // u_bendShade is 0 in video mode (deckle still warps; multiply won't dip the video).
   float bend = washiBend(scr);
-  col *= 1.0 - bend * 0.05;
+  col *= 1.0 - bend * u_bendShade;
 
-  // Torn deckle edge â alpha-cut the sheet on the bent uv so the dark page shows
+  // Torn deckle edge — alpha-cut the sheet on the bent uv so the dark page shows
   // around it and the edge curves with the flex.
   fragColor = vec4(col, washiDeckle(uv));
 }
@@ -630,18 +663,100 @@ void main() {
     }
 
     // The tree shadow eases to 0.9× speed at night for a calmer, dreamier drift.
+    // Two stacked copies crossfade at the loop point so the end→start seam
+    // doesn't pop — native `loop` would hard-cut.
     const videoEl = document.getElementById("washi-video") as HTMLVideoElement | null;
+    const videoElB = document.getElementById("washi-video-b") as HTMLVideoElement | null;
     if (videoEl && useVideo) {
+      const vids = [videoEl, videoElB].filter(Boolean) as HTMLVideoElement[];
       const syncRate = () => {
-        videoEl.playbackRate =
+        const rate =
           document.documentElement.dataset.theme === "dark" ? 0.9 : 1;
+        for (const v of vids) v.playbackRate = rate;
       };
       syncRate();
-      videoEl.addEventListener("loadedmetadata", syncRate);
+      for (const v of vids) v.addEventListener("loadedmetadata", syncRate);
       new MutationObserver(syncRate).observe(document.documentElement, {
         attributes: true,
         attributeFilter: ["data-theme"],
       });
+
+      if (videoElB && !reduceMotion) {
+        const FADE_SEC = 1.35;
+        let active = videoEl;
+        let standby = videoElB;
+        let fading = false;
+        standby.style.opacity = "0";
+
+        const ensureMeta = (v: HTMLVideoElement) =>
+          new Promise<void>((resolve) => {
+            if (v.readyState >= 1) {
+              resolve();
+              return;
+            }
+            v.addEventListener("loadedmetadata", () => resolve(), { once: true });
+          });
+
+        const crossfade = async () => {
+          if (fading) return;
+          fading = true;
+          await ensureMeta(standby);
+          standby.playbackRate = active.playbackRate;
+          try {
+            standby.currentTime = 0;
+          } catch {
+            /* seek can throw before metadata on some browsers */
+          }
+          try {
+            await standby.play();
+          } catch {
+            fading = false;
+            return;
+          }
+          const start = performance.now();
+          const durMs = FADE_SEC * 1000;
+          const step = (now: number) => {
+            const t = Math.min(1, (now - start) / durMs);
+            const e = t * t * (3 - 2 * t); // ease-in-out
+            active.style.opacity = String(1 - e);
+            standby.style.opacity = String(e);
+            if (t < 1) {
+              requestAnimationFrame(step);
+              return;
+            }
+            active.pause();
+            try {
+              active.currentTime = 0;
+            } catch {
+              /* ignore */
+            }
+            active.style.opacity = "0";
+            standby.style.opacity = "1";
+            const prev = active;
+            active = standby;
+            standby = prev;
+            fading = false;
+          };
+          requestAnimationFrame(step);
+        };
+
+        const poll = () => {
+          const d = active.duration;
+          if (
+            Number.isFinite(d) &&
+            d > FADE_SEC * 2 &&
+            !fading &&
+            active.currentTime >= d - FADE_SEC
+          ) {
+            crossfade();
+          }
+          requestAnimationFrame(poll);
+        };
+        ensureMeta(videoEl).then(() => requestAnimationFrame(poll));
+      } else if (videoElB) {
+        videoEl.loop = true;
+        videoElB.remove();
+      }
     }
 
     const lightState = {
@@ -669,13 +784,13 @@ void main() {
     const isInline = root.classList.contains("washi--inline");
 
     // Inject the shared bend into the library paper shader: warp the grain UV up
-    // front so the fibers/crumples flex with the pointer. u_mouse/u_press are
+    // front so the fibers/crumples flex with the pointer. Press origins are
     // declared just before the shared funcs.
     const injectPaperWarp = (src: string) =>
       src
         .replace(
           "in vec2 v_imageUV;",
-          `uniform vec2 u_mouse;\nuniform float u_press;\nin vec2 v_imageUV;\n${washiShared}`,
+          `${bendUniformsDecl}in vec2 v_imageUV;\n${washiShared}`,
         )
         .replace(
           "vec2 imageUV = v_imageUV;\n  vec2 patternUV = v_imageUV - .5;",
@@ -695,11 +810,9 @@ void main() {
         );
 
     const warpedPaperShader = isInline
-      // Centerpiece: warp + a soft depression shadow (the paper multiplies over
-      // the video, so darkening it locally reads as a pressed-in dip) + the same
-      // torn deckle the standalone study cuts, evaluated on the bent uv so the
-      // sheet's edge flexes with the pointer instead of sitting in a static CSS
-      // mask. The video/sun keep their own (static) deckle silhouette in CSS.
+      // Centerpiece: warp + soft depression on the PAPER only; video/sun keep a
+      // static CSS deckle. Bend the paper mount alone in video mode — driving the
+      // light canvas would read as the video window flexing.
       ? injectPaperImageLift(injectPaperWarp(paperTextureFragmentShader)).replace(
           "fragColor = vec4(color, opacity);",
           "vec2 bentUv = washiScr + washiD;\n  color *= 1.0 - washiBend(washiScr) * 0.06;\n  color = washiPly(bentUv, color);\n  color = washiFaceRim(bentUv, color);\n  fragColor = vec4(color, opacity * washiDeckle(bentUv));",
@@ -717,19 +830,26 @@ void main() {
       lightMount.setSpeed(animating ? 1 : 0);
     };
 
-    // Pointer dimple + idle curtain wave: ease u_mouse / u_press toward the
-    // cursor while hovering/touching; otherwise drift a soft virtual press on a
-    // slow Lissajous path so the sheet keeps a gentle flex. Touch drags use
-    // pointer capture so the bend tracks a finger without scrolling the page.
-    // Bend stays off until the unroll animation finishes so shader updates
-    // don't fight the CSS transform.
+    // Pointer dimple + idle curtain ripple: hover drives origin 0; idle drifts
+    // three phase-offset origins so the sheet flexes from multiple places.
+    // Video mode updates the paper mount only (light multiplies over the video).
+    // Bend stays off until the unroll finishes so it doesn't fight the CSS transform.
     const bindPointerDimple = () => {
       if (reduceMotion) return;
-      const IDLE_PRESS = 0.32;
-      const WAVE_PERIOD_MS = 10000;
-      let mx = 0.5, my = 0.5;
-      let tmx = 0.5, tmy = 0.5;
-      let press = 0, pressTarget = IDLE_PRESS;
+      const WAVE_PERIOD_MS = 4000;
+      const IDLE_RAISE = 0.9;
+      // Three origins: smoothed state + targets. Hover uses slot 0 only.
+      const ORIGINS = [
+        { cx: 0.38, cy: 0.58, ampX: 0.28, ampY: 0.18, phase: 0.0, freq: 1.0 },
+        { cx: 0.62, cy: 0.48, ampX: 0.26, ampY: 0.2, phase: 2.15, freq: 0.71 },
+        { cx: 0.5, cy: 0.62, ampX: 0.24, ampY: 0.16, phase: 4.1, freq: 1.19 },
+      ] as const;
+      const mx = [0.5, 0.5, 0.5];
+      const my = [0.5, 0.5, 0.5];
+      const tmx = [0.5, 0.5, 0.5];
+      const tmy = [0.5, 0.5, 0.5];
+      const press = [0, 0, 0];
+      const pressTarget = [0, 0, 0];
       let raf: number | null = null;
       let touchId: number | null = null;
       let hovering = false;
@@ -745,43 +865,67 @@ void main() {
       window.setTimeout(settleBend, 1000);
 
       const idleWaveTargets = (now: number) => {
-        const t = (now / WAVE_PERIOD_MS) * Math.PI * 2;
-        return {
-          tmx: 0.5 + 0.28 * Math.sin(t),
-          tmy: 0.55 + 0.18 * Math.sin(t * 0.7 + 1.1),
-          press: IDLE_PRESS,
-        };
+        const t0 = (now / WAVE_PERIOD_MS) * Math.PI * 2;
+        return ORIGINS.map((o) => {
+          const t = t0 * o.freq + o.phase;
+          // Staggered pulses so raises overlap loosely instead of in lockstep.
+          const pulse = 0.5 + 0.5 * Math.sin(t * 2 + o.phase * 0.35);
+          const raise = IDLE_RAISE * Math.pow(pulse, 0.9);
+          return {
+            tmx: o.cx + o.ampX * Math.sin(t),
+            tmy: o.cy + o.ampY * Math.sin(t * 0.65 + 1.1),
+            press: raise,
+          };
+        });
       };
 
       const tick = () => {
         const interacting = hovering || touchId !== null;
         if (bendReady && !interacting) {
           const idle = idleWaveTargets(performance.now());
-          tmx = idle.tmx;
-          tmy = idle.tmy;
-          pressTarget = idle.press;
+          for (let i = 0; i < 3; i++) {
+            tmx[i] = idle[i].tmx;
+            tmy[i] = idle[i].tmy;
+            pressTarget[i] = idle[i].press;
+          }
+        } else if (interacting) {
+          // Hover/touch: only origin 0 presses; ease the others flat.
+          pressTarget[1] = 0;
+          pressTarget[2] = 0;
         }
-        mx += (tmx - mx) * 0.18;
-        my += (tmy - my) * 0.18;
-        press += (pressTarget - press) * 0.1;
+        for (let i = 0; i < 3; i++) {
+          mx[i] += (tmx[i] - mx[i]) * 0.22;
+          my[i] += (tmy[i] - my[i]) * 0.22;
+          press[i] += (pressTarget[i] - press[i]) * 0.16;
+        }
         const u = {
-          u_mouse: [mx, my] as [number, number],
-          u_press: press,
+          u_mouse0: [mx[0], my[0]] as [number, number],
+          u_press0: press[0],
+          u_mouse1: [mx[1], my[1]] as [number, number],
+          u_press1: press[1],
+          u_mouse2: [mx[2], my[2]] as [number, number],
+          u_press2: press[2],
         };
+        // Keep light + paper bend in lockstep so the deckle/ply silhouette stays
+        // registered. In dark+video the moonlight layer is visible; a static
+        // light deckle reads as a thick border that doesn't follow the paper.
         lightMount?.setUniforms(u);
         paperMount?.setUniforms(u);
-        // Keep rAF alive for the idle wave; only settle-stop when interacting
-        // would be wrong here — idle targets move every frame.
+        // Keep rAF alive for the idle ripple; targets move every frame.
         if (bendReady && !interacting) {
           raf = requestAnimationFrame(tick);
           return;
         }
-        const settled =
-          Math.abs(tmx - mx) < 5e-4 &&
-          Math.abs(tmy - my) < 5e-4 &&
-          Math.abs(pressTarget - press) < 1e-3;
+        const settled = [0, 1, 2].every(
+          (i) =>
+            Math.abs(tmx[i] - mx[i]) < 5e-4 &&
+            Math.abs(tmy[i] - my[i]) < 5e-4 &&
+            Math.abs(pressTarget[i] - press[i]) < 1e-3,
+        );
         raf = settled ? null : requestAnimationFrame(tick);
-        if (settled) press = pressTarget;
+        if (settled) {
+          for (let i = 0; i < 3; i++) press[i] = pressTarget[i];
+        }
       };
       const kick = () => {
         if (raf === null) raf = requestAnimationFrame(tick);
@@ -804,9 +948,13 @@ void main() {
         pressed: boolean,
       ) => {
         if (touchId === null) hovering = pressed;
-        tmx = p.tmx;
-        tmy = p.tmy;
-        pressTarget = pressed ? 1 : IDLE_PRESS;
+        tmx[0] = p.tmx;
+        tmy[0] = p.tmy;
+        pressTarget[0] = pressed ? 1 : 0;
+        if (pressed) {
+          pressTarget[1] = 0;
+          pressTarget[2] = 0;
+        }
         kick();
       };
 
@@ -823,7 +971,9 @@ void main() {
       const release = () => {
         touchId = null;
         hovering = false;
-        pressTarget = IDLE_PRESS;
+        pressTarget[0] = 0;
+        pressTarget[1] = 0;
+        pressTarget[2] = 0;
         kick();
       };
 
@@ -1012,8 +1162,11 @@ void main() {
             u_leafCoverage: lightState.leafCoverage,
             u_leafSway: lightState.leafSway,
             u_leafBlur: lightState.leafBlur,
-            u_mouse: [0.5, 0.5],
-            u_press: 0,
+            ...zeroBendUniforms,
+            // Video mode: warp the deckle with the paper, but don't shade the
+            // multiply glow (that read as the video dipping). Standalone keeps
+            // a soft depression under the press.
+            u_bendShade: useVideo ? 0 : 0.05,
             ...(leafImage ? { u_leafTex: leafImage } : {}),
             u_leafTexAspectRatio: 1,
             u_colorPaper: getShaderColorFromString(palette.paper),
@@ -1092,8 +1245,7 @@ void main() {
           paperEl,
           warpedPaperShader,
           {
-            u_mouse: [0.5, 0.5],
-            u_press: 0,
+            ...zeroBendUniforms,
             // paperTexture is an image shader: the Paper Shaders playground runs
             // it in object sizing (fit: contain) over its sample image, so the
             // washi spans the frame. Pattern sizing (fit: none) instead tiles it
@@ -1241,6 +1393,11 @@ void main() {
     height: 100%;
     object-fit: cover;
     filter: brightness(1.18) contrast(1.06);
+  }
+
+  /* Standby copy for the seamless loop crossfade — sits on the same layer. */
+  .washi__video--b {
+    opacity: 0;
   }
 
   /* Warm sunlight pouring onto the washi â brightest where the light enters
