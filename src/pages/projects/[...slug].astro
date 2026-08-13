@@ -1,0 +1,193 @@
+---
+import { getCollection, render } from "astro:content";
+import type { GetStaticPaths } from "astro";
+import Base from "../../layouts/Base.astro";
+import MermaidRuntime from "../../components/MermaidRuntime.astro";
+
+export const getStaticPaths = (async () => {
+  const projects = await getCollection("projects", ({ data }) => !data.draft);
+  return projects.map((project) => ({
+    params: { slug: project.id },
+    props: { project },
+  }));
+}) satisfies GetStaticPaths;
+
+const { project } = Astro.props;
+const { Content } = await render(project);
+
+const meta = [project.data.year, project.data.affiliation]
+  .filter(Boolean)
+  .join(" · ");
+const host = project.data.link
+  ? new URL(project.data.link).hostname.replace(/^www\./, "")
+  : null;
+---
+
+<Base
+  title={`${project.data.title} — Tony Wang`}
+  description={project.data.description}
+>
+  <article>
+    <p class="back reveal" style="--i: 0">
+      <a class="row__link" href="/#work">← Tony Wang</a>
+    </p>
+    <header class="reveal" style="--i: 1">
+      <h1 class="title">{project.data.title}</h1>
+      <p class="meta-line">{meta}</p>
+      {
+        host && (
+          <p class="ext">
+            <a class="row__link" href={project.data.link}>
+              {host} ↗
+            </a>
+          </p>
+        )
+      }
+    </header>
+    <div class="prose reveal" style="--i: 2">
+      <Content />
+    </div>
+  </article>
+  <MermaidRuntime />
+</Base>
+
+<style>
+  .back {
+    margin: 0 0 1.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .back .row__link {
+    text-decoration: none;
+  }
+  .title {
+    font-size: clamp(1.6rem, 4.5vw, 2.2rem);
+    margin: 0 0 0.4rem;
+  }
+  .meta-line {
+    font-family: var(--font-sans);
+    font-size: var(--label-size);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0;
+  }
+  .ext {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+  }
+  .ext .row__link {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .prose {
+    margin-top: 2rem;
+    font-family: var(--font-serif);
+    font-size: 1.15rem;
+    line-height: 1.75;
+  }
+  .prose :global(h2) {
+    font-family: var(--font-sans);
+    font-size: 1.1rem;
+    margin: 2.2rem 0 0.6rem;
+  }
+  .prose :global(h3) {
+    font-family: var(--font-sans);
+    font-size: 0.98rem;
+    margin: 1.9rem 0 0.5rem;
+  }
+  .prose :global(p) {
+    margin: 0 0 1.2rem;
+  }
+  .prose :global(hr) {
+    border: none;
+    border-top: 1px solid var(--faint);
+    margin: 2.6rem 0;
+  }
+  .prose :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 1.4rem 0 0.4rem;
+  }
+  .prose :global(img + p) {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin: 0 0 1.6rem;
+  }
+  .prose :global(blockquote) {
+    margin: 1.6rem 0;
+    padding-left: 1rem;
+    border-left: 2px solid var(--faint);
+    color: var(--muted);
+    font-style: italic;
+  }
+  .prose :global(a) {
+    color: var(--accent);
+  }
+  .prose :global(ul),
+  .prose :global(ol) {
+    padding-left: 1.2rem;
+  }
+  .prose :global(li) {
+    margin: 0.3rem 0;
+  }
+
+  /* Diagrams, tables and code carry more columns than the reading measure
+     allows — let them spill symmetrically past it, like the homepage sheet. */
+  .prose :global(pre),
+  .prose :global(table) {
+    --wide: min(52rem, 92vw);
+    width: var(--wide);
+    margin-left: calc(50% - var(--wide) / 2);
+  }
+  /* Diagrams get the full sheet width used by the homepage centerpiece, so
+     dense flowcharts scale down less. */
+  .prose :global(pre.mermaid) {
+    --wide: min(56rem, 92vw);
+  }
+  .prose :global(pre:not(.mermaid)) {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    line-height: 1.6;
+    padding: 1rem 1.1rem;
+    margin-block: 1.6rem;
+    border: 1px solid var(--faint);
+    background: color-mix(in srgb, var(--faint) 50%, transparent);
+    overflow-x: auto;
+  }
+  .prose :global(code) {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    padding: 0.1em 0.32em;
+    background: color-mix(in srgb, var(--faint) 70%, transparent);
+  }
+  .prose :global(pre code) {
+    font-size: inherit;
+    padding: 0;
+    background: none;
+  }
+  .prose :global(table) {
+    border-collapse: collapse;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-block: 1.8rem;
+  }
+  .prose :global(th),
+  .prose :global(td) {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.55rem 1rem 0.55rem 0;
+    border-bottom: 1px solid var(--faint);
+  }
+  .prose :global(th) {
+    font-size: var(--label-size);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+</style>

@@ -13,12 +13,13 @@ export const work: WorkItem[] = [
     affiliation: "Yale School of Management",
     description: "AI agents for financial crisis intervention. In progress.",
     year: "May 2026",
-    href: "https://newbagehot.yale.edu/about-project",
+    href: "/projects/new-bagehot/",
   },
   {
     title: "Pera",
     description: "Immersive language learning, anywhere. In progress.",
     year: "May 2026",
+    href: "/projects/pera/",
   },
   {
     title: "Nexus",

@@ -1,0 +1,103 @@
+---
+// Renders any ```mermaid fences on the page (turned into `pre.mermaid` by the
+// remark plugin in astro.config.mjs). Mermaid is ~2MB, so it is dynamically
+// imported and only on pages that actually contain a diagram.
+---
+
+<script>
+  const blocks = Array.from(document.querySelectorAll("pre.mermaid"));
+
+  if (blocks.length) {
+    const root = document.documentElement;
+    // Hide the raw diagram source until it has been drawn. Gated on a class set
+    // from JS so a failed render (or no JS at all) falls back to readable text.
+    root.classList.add("mermaid-pending");
+    const reveal = () => root.classList.remove("mermaid-pending");
+    const failsafe = setTimeout(reveal, 4000);
+
+    const sources = blocks.map((el) => el.textContent || "");
+    const token = (name: string) =>
+      getComputedStyle(root).getPropertyValue(name).trim();
+
+    (async () => {
+      try {
+        const { default: mermaid } = await import("mermaid");
+
+        const draw = async () => {
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: "base",
+            securityLevel: "strict",
+            flowchart: { curve: "basis", padding: 14, useMaxWidth: true },
+            themeVariables: {
+              fontFamily: token("--font-sans"),
+              fontSize: "14px",
+              background: token("--bg"),
+              primaryColor: token("--faint"),
+              mainBkg: token("--faint"),
+              primaryBorderColor: token("--muted"),
+              nodeBorder: token("--muted"),
+              primaryTextColor: token("--fg"),
+              nodeTextColor: token("--fg"),
+              textColor: token("--fg"),
+              titleColor: token("--fg"),
+              lineColor: token("--muted"),
+              edgeLabelBackground: token("--bg"),
+              clusterBkg: token("--bg"),
+              clusterBorder: token("--faint"),
+              secondaryColor: token("--bg"),
+              tertiaryColor: token("--bg"),
+            },
+          });
+
+          blocks.forEach((el, i) => {
+            el.removeAttribute("data-processed");
+            el.textContent = sources[i];
+          });
+          await mermaid.run({ nodes: blocks as HTMLElement[] });
+        };
+
+        await draw();
+        clearTimeout(failsafe);
+        reveal();
+
+        // Diagram colors are baked into the SVG at draw time, so a theme flip
+        // needs a full redraw.
+        let pending = 0;
+        new MutationObserver(() => {
+          clearTimeout(pending);
+          pending = setTimeout(draw, 60);
+        }).observe(root, {
+          attributes: true,
+          attributeFilter: ["data-theme"],
+        });
+      } catch (e) {
+        clearTimeout(failsafe);
+        reveal();
+      }
+    })();
+  }
+</script>
+
+<style is:global>
+  html.mermaid-pending pre.mermaid {
+    visibility: hidden;
+  }
+  pre.mermaid {
+    margin: 2rem 0;
+    padding: 0;
+    background: none;
+    text-align: center;
+    line-height: 1.4;
+  }
+  pre.mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+  /* Mermaid inlines its own font-family on labels; keep edge text quiet. */
+  pre.mermaid .edgeLabel {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+</style>
