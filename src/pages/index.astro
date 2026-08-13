@@ -65,10 +65,11 @@ const recent = posts.slice(0, 4);
   <script is:inline>
     // Safety net: if the WebGL washi never signals ready (module failed to load,
     // WebGL unsupported, very slow network), reveal the centerpiece anyway.
+    // Keep this well past shader + video init so we don't flash an empty canvas.
     setTimeout(function () {
       document.documentElement.classList.add("washi-ready");
       document.documentElement.classList.add("washi-unrolled");
-    }, 2600);
+    }, 8000);
   </script>
 
   <section id="work" class="reveal section" style="--i: 5">
@@ -274,18 +275,20 @@ const recent = posts.slice(0, 4);
     margin-left: 0;
     margin-right: auto;
     margin-top: 3rem;
-    /* Hold the entrance until the WebGL washi has painted its first frame, so
-       the paper and the autoplaying video reveal together. On slow networks the
-       shader bundle + textures lag the video by ~1s; gating on `washi-ready`
-       (set by WashiScreen, with a timeout fallback below) keeps them in sync. */
+    /* Hold paper + caption until the WebGL washi has painted and the video has
+       a frame. `visibility` keeps the block unrendered (and un-hittable) until
+       then; opacity/transform are the entrance once `washi-ready` lands. */
     opacity: 0;
+    visibility: hidden;
     transform: translateY(8px);
     transition:
       opacity 420ms var(--ease-out-cubic),
-      transform 420ms var(--ease-out-cubic);
+      transform 420ms var(--ease-out-cubic),
+      visibility 0s;
   }
   :global(html.washi-ready) .centerpiece-wrap {
     opacity: 1;
+    visibility: visible;
     transform: none;
   }
   /* Phones: the video/sun/tint masks sit ~11px inside the sheet (--edge-rim plus

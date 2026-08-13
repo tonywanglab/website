@@ -602,14 +602,27 @@ void main() {
     ).matches;
 
     let unrollMarked = false;
+    let readyMarked = false;
     const markUnrolled = () => {
       if (unrollMarked) return;
       unrollMarked = true;
       document.documentElement.classList.add("washi-unrolled");
     };
-    if (reduceMotion) {
-      markUnrolled();
-    } else {
+    // Reveal paper + caption only after the sheet has actually painted. The
+    // unroll animation stays paused until this fires so it doesn't play into
+    // an empty canvas (or finish while the wrap is still hidden).
+    const markReady = () => {
+      if (readyMarked) return;
+      readyMarked = true;
+      document.documentElement.classList.add("washi-ready");
+      if (reduceMotion) {
+        markUnrolled();
+      } else {
+        // Start the shadow while the last ~20% of the unroll is still settling.
+        window.setTimeout(markUnrolled, 620);
+      }
+    };
+    if (!reduceMotion) {
       root.addEventListener(
         "animationend",
         (e) => {
@@ -617,8 +630,6 @@ void main() {
         },
         { once: true },
       );
-      // Start the shadow while the last ~20% of the unroll is still settling.
-      window.setTimeout(markUnrolled, 620);
     }
 
     // When a tree-shadow video backdrop is supplied, it replaces the GLSL
@@ -1302,12 +1313,25 @@ void main() {
           isInline ? 1280 * 720 : 1920 * 1080,
         );
 
-        // The paper has rendered its first frame. Signal the page (next paint)
-        // so it can reveal the centerpiece in sync with the paper — otherwise the
-        // autoplaying video shows ~1s before the shader finishes on slow networks.
-        requestAnimationFrame(() =>
-          document.documentElement.classList.add("washi-ready"),
-        );
+        // Hold the page reveal until the paper has painted and the tree-shadow
+        // video has a decoded frame — otherwise the wrap fades in over a blank
+        // canvas (or paper without foliage). Two rAFs wait for the first GPU
+        // present; loadeddata means the <video> has a current frame.
+        const videoFrame = new Promise<void>((resolve) => {
+          if (!useVideo || !videoEl || videoEl.readyState >= 2) {
+            resolve();
+            return;
+          }
+          const done = () => resolve();
+          videoEl.addEventListener("loadeddata", done, { once: true });
+          videoEl.addEventListener("error", done, { once: true });
+          window.setTimeout(done, 4000);
+        });
+        const firstPaint = new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+        await Promise.all([videoFrame, firstPaint]);
+        markReady();
 
         // Swap the embedded photo when the theme flips (day â night).
         if (darkImage && dayImage) {
@@ -1328,6 +1352,7 @@ void main() {
         }
       } catch (err) {
         console.error("[washi] paper mount failed", err);
+        markReady();
       }
 
       // Pointer bend works in both modes (full-viewport light shader or the
@@ -1355,6 +1380,11 @@ void main() {
        ease-out-quint settle â no bounce, which would read wrong for paper. */
     transform-origin: top center;
     animation: washi-unroll 950ms cubic-bezier(0.23, 1, 0.32, 1) both;
+    animation-play-state: paused;
+  }
+
+  :global(html.washi-ready) #washi {
+    animation-play-state: running;
   }
 
   @keyframes washi-unroll {
