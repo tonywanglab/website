@@ -139,14 +139,14 @@ const host = project.data.link
      allows — let them spill symmetrically past it, like the homepage sheet. */
   .prose :global(pre),
   .prose :global(table) {
-    --wide: min(52rem, 92vw);
+    --wide: min(78rem, 92vw);
     width: var(--wide);
     margin-left: calc(50% - var(--wide) / 2);
   }
   /* Diagrams get the full sheet width used by the homepage centerpiece, so
      dense flowcharts scale down less. */
   .prose :global(pre.mermaid) {
-    --wide: min(56rem, 92vw);
+    --wide: min(84rem, 92vw);
   }
   .prose :global(pre:not(.mermaid)) {
     font-family: var(--font-mono);

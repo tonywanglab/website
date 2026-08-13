@@ -13,7 +13,7 @@
   --accent: #b5532a; /* clay */
 
   /* Type & layout */
-  --measure: 40rem; /* ~640px content column */
+  --measure: 60rem; /* ~960px content column */
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
   --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",

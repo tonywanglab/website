@@ -224,10 +224,12 @@ const recent = posts.slice(0, 4);
   .name {
     font-size: clamp(1.6rem, 4vw, 2.1rem);
     margin: 0 0 0.5rem;
+    text-align: left;
   }
   .bio {
     margin: 0;
-    max-width: 32rem;
+    max-width: 48rem;
+    text-align: left;
   }
   .bio__lead {
     color: var(--fg);
@@ -268,8 +270,9 @@ const recent = posts.slice(0, 4);
     --edge-deep: clamp(24px, 6.5cqw, 36px);
     --edge-xl: clamp(46px, 13cqw, 72px);
     --sheet-inset: calc(var(--gap) - var(--outset));
-    width: min(56rem, 92vw);
-    margin-left: calc(50% - min(56rem, 92vw) / 2);
+    width: min(84rem, 100%);
+    margin-left: 0;
+    margin-right: auto;
     margin-top: 3rem;
     /* Hold the entrance until the WebGL washi has painted its first frame, so
        the paper and the autoplaying video reveal together. On slow networks the
@@ -284,6 +287,19 @@ const recent = posts.slice(0, 4);
   :global(html.washi-ready) .centerpiece-wrap {
     opacity: 1;
     transform: none;
+  }
+  /* Phones: the video/sun/tint masks sit ~11px inside the sheet (--edge-rim plus
+     the deckle SVG's own inset and displacement) while the paper shader cuts its
+     torn edge at ~5px. That band has paper but nothing behind it, and paper over
+     nothing composites to bare cream — a hard white frame once the sheet is only
+     ~340px wide. Pull the masks out to meet the paper: drop the rim (it exists to
+     keep the pointer-bent edge off the video, and there is no hover bend on
+     touch) and tighten the mask's own inset to match. */
+  @media (max-width: 640px) {
+    .centerpiece-wrap {
+      --edge-rim: 0px;
+      --deckle: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 625' preserveAspectRatio='none'><filter id='d' x='-10%' y='-12%' width='120%' height='124%'><feTurbulence type='fractalNoise' baseFrequency='0.02' numOctaves='4' seed='370' result='n'/><feDisplacementMap in='SourceGraphic' in2='n' scale='10' xChannelSelector='R' yChannelSelector='G' result='disp'/><feGaussianBlur in='disp' stdDeviation='1.2'/></filter><rect x='14' y='14' width='972' height='597' rx='22' ry='22' fill='%23fff' filter='url(%23d)'/></svg>");
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .centerpiece-wrap {
