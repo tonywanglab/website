@@ -3,7 +3,7 @@ title: "The New Bagehot Project"
 description: "AI agents for financial crisis intervention, at the Yale School of Management."
 year: "May 2026"
 affiliation: "Yale School of Management"
-link: "https://newbagehot.yale.edu/about-project"
+link: "https://github.com/tonywanglab/ypfs-agent"
 ---
 
 **AI agents for financial crisis intervention.** An LLM agent answers policy questions against a corpus of crisis surveys and episode case studies: which precedent applies, what a lender of last resort should do, and when the textbook answer is the wrong one. We designed this as a decision-making assistant for central banks and policymakers around the world.
